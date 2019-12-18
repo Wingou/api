@@ -48,7 +48,14 @@ update msg model =
             ( model, getPublicOpinion )
 
         GotText r ->
-            ( { model | result = r }, Cmd.none )
+            ( { model 
+            | 
+            result = 
+            case r of
+                
+                                 
+                                 }
+                                 , Cmd.none )
 
 
 

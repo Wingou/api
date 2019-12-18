@@ -19,6 +19,7 @@ Starter Kit for create a new project
   > \$> elm init
 - Ajouter dans /src le fichier Main.elm
   - Récupérer un exemple de contenu : https://elm-lang.org/examples/buttons
+  - ou récupére le fichier Main.elm de ce projet
 
 ### Pour lancer le projet
 
@@ -132,3 +133,7 @@ Pour mettre en place le Hot Reloading
 ou
 
 > \$> npm install --save-dev elm elm-live
+
+# API
+
+https://jsonplaceholder.typicode.com/

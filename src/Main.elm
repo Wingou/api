@@ -1,23 +1,10 @@
 module Main exposing (..)
 
--- Press buttons to increment and decrement a counter.
---
--- Read how it works:
---   https://guide.elm-lang.org/architecture/buttons.html
---
-
 import Browser
-import Html exposing (Html, button, div, img, text)
-import Html.Attributes exposing (src)
+import Html exposing (Html, a, button, div, img, text)
+import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
-
-
-
--- MAIN
-
-
-main =
-    Browser.sandbox { init = init, update = update, view = view }
+import Http
 
 
 
@@ -25,12 +12,12 @@ main =
 
 
 type alias Model =
-    Int
+    { result : String }
 
 
-init : Model
+init : ( Model, Cmd Msg )
 init =
-    0
+    ( { result = "RIEN" }, Cmd.none )
 
 
 
@@ -38,29 +25,59 @@ init =
 
 
 type Msg
-    = Increment
-    | Decrement
+    = NoOp
+    | GotText (Result Http.Error String)
+    | CallGetApi
 
 
-update : Msg -> Model -> Model
+getPublicOpinion : Cmd Msg
+getPublicOpinion =
+    Http.get
+        { url = "https://elm-lang.org/assets/public-opinion.txt"
+        , expect = Http.expectString GotText
+        }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Increment ->
-            model + 1
+        NoOp ->
+            ( model, Cmd.none )
 
-        Decrement ->
-            model - 1
+        CallGetApi ->
+            ( model, getPublicOpinion )
+
+        GotText r ->
+            ( { model | result = r }, Cmd.none )
 
 
 
 -- VIEW
 
 
+apiGet : String
+apiGet =
+    "https://jsonplaceholder.typicode.com/users"
+
+
 view : Model -> Html Msg
 view model =
     div []
-        [ button [ onClick Decrement ] [ text "-" ]
-        , div [] [ text (String.fromInt model) ]
-        , button [ onClick Increment ] [ text "+ggddgdfghgfh" ]
+        [ div [] [ text model.result ]
         , img [ src "images/door.jpg" ] []
+        , a [ style "cursor" "pointer", onClick CallGetApi ] [ text "Call API" ]
         ]
+
+
+
+---- PROGRAM ----
+
+
+main : Program () Model Msg
+main =
+    Browser.element
+        { view = view
+        , init = \_ -> init
+        , update = update
+        , subscriptions = always Sub.none
+        }

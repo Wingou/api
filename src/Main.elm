@@ -5,6 +5,7 @@ import Html exposing (Html, a, button, div, img, text)
 import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
 import Http
+import Json.Decode exposing (Decoder, field, string)
 
 
 
@@ -33,10 +34,17 @@ type Msg
 getPublicOpinion : Cmd Msg
 getPublicOpinion =
     Http.get
-        { url = "https://elm-lang.org/assets/public-opinion.txt"
-        , expect = Http.expectString GotText
+        { 
+            -- url = "https://elm-lang.org/assets/public-opinion.txt"
+              --url = "https://ci-api-mediashare.vpback.vpgrp.io/api/context?page=1&size=1"
+             url="https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=cat"
+            , expect = Http.expectJson GotText resultDecoder
         }
 
+
+resultDecoder : Decoder String
+resultDecoder = 
+    field "data" (field "image_url" string)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -48,14 +56,11 @@ update msg model =
             ( model, getPublicOpinion )
 
         GotText r ->
-            ( { model 
-            | 
-            result = 
-            case r of
-                
-                                 
-                                 }
-                                 , Cmd.none )
+            ( {model| result = 
+                    case r of
+                        Ok s -> s
+                        Err err -> "no"
+                    }  , Cmd.none )
 
 
 

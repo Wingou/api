@@ -4,66 +4,79 @@ import Browser
 import Html exposing (Html, a, button, div, img, text)
 import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
-import Http
-import Json.Decode exposing (Decoder, at, field, int, map3, string)
+import Http exposing (get, request, emptyBody, expectJson, header)
+import Json.Decode exposing (Decoder, at, field, int, map2, string, map, list)
 import String exposing (fromInt)
-
+import List
 
 
 -- MODEL
 
 
 type alias Meta =
-    { status : Int
-    , msg : String
-    , response_id : String
+    {
+        user_validator : String,
+        status : String
     }
 
 
 type alias Model =
-    { result : Meta }
+    { result : List Meta }
 
 
 init : ( Model, Cmd Msg )
 init =
     ( { result =
-            { status = 0
-            , msg = "RIEN"
-            , response_id = "RIENNULL"
-            }
-      }
+            [ 
+                {user_validator = "INITIALISATION__1", status="INIT"},
+                {user_validator = "INITIALISATION__2", status="INITiatlisation"}
+            ]
+        }
     , Cmd.none
     )
 
-
+urlAPI : String
+urlAPI ="http://mediaapi-ci.vpback.vpgrp.io/api/v1/tasks/PARAH9"
+         -- url = "https://elm-lang.org/assets/public-opinion.txt"
+         --  url = "https://ci-api-mediashare.vpback.vpgrp.io/api/context?page=1&size=1"
+         -- url = "https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=cat"
+      
 
 -- UPDATE
 
 
 type Msg
     = NoOp
-    | GotText (Result Http.Error Meta)
+    | GotText (Result Http.Error (List Meta))
     | CallGetApi
 
 
-getPublicOpinion : Cmd Msg
-getPublicOpinion =
-    Http.get
-        { -- url = "https://elm-lang.org/assets/public-opinion.txt"
-          --url = "https://ci-api-mediashare.vpback.vpgrp.io/api/context?page=1&size=1"
-          url = "https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=cat"
-        , expect = Http.expectJson GotText resultDecoder
-        }
+
+getAPI : Cmd Msg
+getAPI =
+    Http.request
+        { 
+              method = "GET"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
+            , url = urlAPI
+            , body = emptyBody
+            , expect = expectJson GotText resultDecoder
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
+uniqDecoder : Decoder Meta
+uniqDecoder =
+    map2 Meta
+        (field "user_validator" string)
+        (field "status" string) 
 
 
-resultDecoder : Decoder Meta
+resultDecoder : Decoder (List Meta)
 resultDecoder =
-    map3 Meta
-        (at [ "meta", "status" ] int)
-        (at [ "meta", "msg" ] string)
-        (at [ "meta", "response_id" ] string)
-
-
+    map identity (list uniqDecoder)
+       
+        
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -71,7 +84,7 @@ update msg model =
             ( model, Cmd.none )
 
         CallGetApi ->
-            ( model, getPublicOpinion )
+            ( model, getAPI )
 
         GotText r ->
             ( { model
@@ -81,10 +94,9 @@ update msg model =
                             s
 
                         Err err ->
-                            { status = 0
-                            , msg = "RIEN_ERROR"
-                            , response_id = "RIENNULL_ERROR"
-                            }
+                            [{ status = "ERROR"
+                            , user_validator = "RIEN_ERROR"
+                            }]
               }
             , Cmd.none
             )
@@ -93,19 +105,15 @@ update msg model =
 
 -- VIEW
 
-
-apiGet : String
-apiGet =
-    "https://jsonplaceholder.typicode.com/users"
-
-
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text ("STATUS : " ++ fromInt model.result.status) ]
-        , div [] [ text ("MSG :  " ++ model.result.msg) ]
-        , div [] [ text ("RESPONSE_ID :  " ++ model.result.response_id) ]
-        , img [ src "images/door.jpg" ] []
+        [
+          div []    
+            (List.map (\m -> div [][
+                    div [] [ text ("STATUS : " ++ m.status) ]
+                    , div [] [ text ("EXTRRNAL_ID:  " ++ m.user_validator) ]
+            ]) model.result)
         , a [ style "cursor" "pointer", onClick CallGetApi ] [ text "Call API" ]
         ]
 

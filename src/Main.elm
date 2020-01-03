@@ -5,13 +5,61 @@ import Html exposing (Html, a, button, div, img, text, input, button, table, tr,
 import Html.Attributes exposing (src, style, value, placeholder)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (get, request, emptyBody, expectJson, header)
-import Json.Decode exposing (Decoder, at, field, int, map8, string, map, list)
+import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list)
 import String exposing (fromInt)
 import List exposing (head)
 
+---------- CONST
 
--- MODEL
+env : String
+env = "Prod"
+-- env = "CI"
 
+type alias Config =
+    {
+        server : String,
+        defaultOperation : String
+    }
+
+serverCI: String
+serverCI =
+    "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
+
+serverProd: String
+serverProd =
+    "http://mediaapi.vpback.vpgrp.io/api/v1"
+
+defaultOperationCI: String
+defaultOperationCI = "LADC5"    
+
+defaultOperationProd: String
+defaultOperationProd = "GNORWAY38"    
+
+config: Config
+config  = case env of
+                            "Prod" -> {
+                                        server=serverProd,
+                                        defaultOperation=defaultOperationProd
+                                    }
+                            _ -> {
+                                        server=serverCI,
+                                        defaultOperation=defaultOperationCI
+                                    }
+
+---------- MODEL
+
+type alias Model =
+    {   op : Operation, 
+        operationInput : String,
+        tasks : List Task 
+    }
+
+type alias Operation =
+    {
+        operationId:Int,
+        operationCode:String,
+        masterMode:String
+    }
 
 type alias Task =
     {
@@ -30,23 +78,25 @@ type alias Tasks =
 
 
 type MasterMode =
-        None
+        NONE
         | DAM 
         | NAS
-
-type alias Model =
-    { 
-        operation : String,
-        masterMode : MasterMode,
-        tasks : List Task }
 
 
 
 type Msg
     = NoOp
     | GotTasks (Result Http.Error (List Task))
-    | CallGetApi
-    | SetOperation String
+    | CallGetTasks
+    | SetOperationInput String
+    | GotOperation (Result Http.Error Operation)
+
+emptyOperation : Operation
+emptyOperation = {
+        operationId=-1,
+        operationCode = "OPERATION0",
+        masterMode="NONE"
+    }
 
 emptyTask : Task
 emptyTask = {
@@ -62,8 +112,8 @@ emptyTask = {
 init : ( Model, Cmd Msg )
 init =
     ( { 
-        operation = "",
-        masterMode = None,
+        op = emptyOperation,
+        operationInput = config.defaultOperation,
         tasks =
             [ emptyTask
             ]
@@ -71,66 +121,63 @@ init =
     , Cmd.none
     )
 
-urlAPI : String
-urlAPI ="http://mediaapi.vpback.vpgrp.io/api/v1/tasks/" --PARAH9
--- urlAPI ="http://mediaapi-ci.vpback.vpgrp.io/api/v1/tasks/" --PARAH9
-         -- url = "https://elm-lang.org/assets/public-opinion.txt"
-         --  url = "https://ci-api-mediashare.vpback.vpgrp.io/api/context?page=1&size=1"
-         -- url = "https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=cat"
-      
 
--- Functions 
+---------- API 
+apiGetTasks : String
+apiGetTasks = config.server ++ "/tasks/"
+
+apiGetOperation : String
+apiGetOperation = config.server ++ "/operations/"
+
+---------- REQUEST
 requestGetTasks : String -> Cmd Msg
-requestGetTasks operation =
+requestGetTasks op =
     Http.request
         { 
               method = "GET"
             , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
-            , url = urlAPI ++ operation
+            , url = apiGetTasks ++ op
             , body = emptyBody
-            , expect = expectJson GotTasks listResultDecoder
+            , expect = expectJson GotTasks tasksDecoder
             , timeout = Nothing
             , tracker = Nothing
         } 
 
-switchMasterMode : String -> MasterMode -> Cmd Msg
-switchMasterMode operation antiMasterMode =
+requestGetOperation : String -> Cmd Msg
+requestGetOperation op =
     Http.request
         { 
               method = "GET"
             , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
-            , url = urlAPI ++ operation
+            , url = apiGetOperation ++ op
             , body = emptyBody
-            , expect = expectJson GotTasks listResultDecoder
+            , expect = expectJson GotOperation operationDecoder
             , timeout = Nothing
             , tracker = Nothing
         } 
 
--- helper
-convertMasterModeToString : MasterMode -> String
-convertMasterModeToString masterMode =
-                    case masterMode of
-                                None -> "None"
-                                DAM -> "DAM"
-                                NAS -> "NAS"
+---------- helper   
 
-convertStringToMasterMode : String -> MasterMode
-convertStringToMasterMode masterMode =
-                    case masterMode of 
-                                "DAM" -> DAM
-                                "NAS" -> NAS
-                                _ -> None
-
-getAntiMasterMode : MasterMode -> MasterMode
-getAntiMasterMode masterMode = 
+toAntiMasterMode : String -> String
+toAntiMasterMode masterMode = 
            case masterMode of 
-                                DAM -> NAS
-                                NAS -> DAM
-                                None -> None
+                                "DAM" -> "NAS"
+                                "NAS" -> "DAM"
+                                _ -> "NONE"
 
--- Decoders 
-resultDecoder : Decoder Task
-resultDecoder =
+getLastTask : Tasks -> Task
+getLastTask t =   
+                    case head t of
+                            Just justTask ->
+                                justTask
+
+                            Nothing ->
+                                emptyTask
+
+
+---------- Decoders 
+taskDecoder : Decoder Task
+taskDecoder =
     map8 Task
         (field "id" int)
         (field "user_validator" string)
@@ -142,12 +189,18 @@ resultDecoder =
         (field "master_mode" string)
 
 
-listResultDecoder : Decoder (List Task)
-listResultDecoder =
-    map identity (list resultDecoder)
+tasksDecoder : Decoder (List Task)
+tasksDecoder =
+    map identity (list taskDecoder)
        
+operationDecoder : Decoder Operation
+operationDecoder =
+    map3 Operation
+        (field "id" int)
+        (field "label" string)
+        (field "master_mode" string)
 
--- UPDATE
+---------- UPDATE
 
 
 
@@ -158,12 +211,12 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        SetOperation op ->
-            ( {model | operation = op }, Cmd.none )
+        SetOperationInput op ->
+            ( {model | operationInput = op }, Cmd.none )
 
 
-        CallGetApi ->
-            ( model, requestGetTasks model.operation)
+        CallGetTasks ->
+            ( model, requestGetTasks model.operationInput)
 
         GotTasks r ->
             let
@@ -173,30 +226,45 @@ update msg model =
                             listGetTasks
                         Err err ->
                             []
-                getLastTask =
-                        case head getTasks of
-                            Just t ->
-                                t
-
-                            Nothing ->
-                                emptyTask
             in
             ( { model
-                | tasks =getTasks,
-                  masterMode = convertStringToMasterMode getLastTask.master_mode
-                     
+                | tasks =getTasks
+              }
+            , requestGetOperation model.operationInput
+            )
+        
+        GotOperation r ->
+            let
+                gotOperation=
+                    case r of
+                        Ok opeOk ->
+                            opeOk
+                        Err err ->
+                            emptyOperation
+            in
+            ( { model
+                | op=gotOperation
               }
             , Cmd.none
             )
 
 
 
--- VIEW
+---------- VIEW
 
 displayTasks : Tasks -> Html Msg
 displayTasks tasks =
-              div []    
-            (List.map (\t -> table [ style "border" "solid", style "width" "500px"][
+        let 
+            lastTask = getLastTask tasks
+          
+            displayMode=
+                if lastTask.id == -1 then    
+                    "none"
+                else
+                    "block"
+         in
+            div [style "display" displayMode]   
+                (List.map (\t -> table [ style "border" "solid", style "width" "500px"][
 
                 tr[][  td[][ text "Id"  ] , td[style "width" "250px"][ text (fromInt t.id)]  ],
                 tr[][  td[][ text "user_validator"  ] , td[][ text t.user_validator]  ],
@@ -210,23 +278,40 @@ displayTasks tasks =
             ]) tasks)
 
 
-
-displayMasterMode : String -> MasterMode -> Html Msg
-displayMasterMode operation masterMode =
-    let
-        displayMode=if masterMode==None then    
-                "None"
+displayOperation : Operation -> Html Msg
+displayOperation o =
+    let 
+          displayMode=if o.operationId == -1 then    
+                "none"
             else
-                "Block"
+                "block"
+    in
+    div [style "display" displayMode]
+        [table [ style "border" "solid", style "width" "500px"][
+
+                tr[][  td[][ text "OperationId"  ] , td[style "width" "250px"][ text (fromInt o.operationId)]  ],
+                tr[][  td[][ text "OperationCode"  ] , td[][ text o.operationCode]  ],
+                tr[][  td[][ text "Master Mode"  ] , td[][ text o.masterMode]  ]
+                ]
+                    
+         ]
+
+displayMasterMode : Operation ->  Html Msg
+displayMasterMode op =
+    let
+        displayMode=if op.masterMode=="NONE" then    
+                "none"
+            else
+                "block"
         
-        masterModeDisplay=convertMasterModeToString masterMode
-        antiMasterModeDisplay=convertMasterModeToString (getAntiMasterMode masterMode)
+        masterModeStr=op.masterMode
+        antiMasterModeStr= toAntiMasterMode op.masterMode
     in
     div[
         style "display" displayMode 
     ][ 
-        text ("MASTER MODE : "++ masterModeDisplay) ,
-        button [][ text ("Convert to "++antiMasterModeDisplay)]
+        text ("MASTER MODE : "++ masterModeStr) ,
+        button [][ text ("Convert to "++antiMasterModeStr)]
 
     ]
     
@@ -234,16 +319,19 @@ displayMasterMode operation masterMode =
 
 view : Model -> Html Msg
 view model =
+    let
+        modelOp=model.op
+        modelTasks=model.tasks
+    in
     div []
         [
           div [][
                 
-                input [ onInput SetOperation, value model.operation, placeholder "Opération" ][], button [onClick CallGetApi ][text "OK"]
+                input [ onInput SetOperationInput, value model.operationInput, placeholder "Opération" ][], button [onClick CallGetTasks ][text "OK"]
            ]
-          ,
-          displayMasterMode model.operation model.masterMode
-          ,
-          displayTasks model.tasks
+        , displayOperation model.op
+          , displayMasterMode model.op
+          , displayTasks modelTasks
           
 
       
@@ -251,7 +339,7 @@ view model =
 
 
 
----- PROGRAM ----
+-------------------- PROGRAM --------------------
 
 
 main : Program () Model Msg

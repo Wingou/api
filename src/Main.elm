@@ -5,10 +5,10 @@ import Html exposing (Html, a, button, div, img, text, input, button, table, tr,
 import Html.Attributes exposing (src, style, value, placeholder, attribute)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (get, request, emptyBody, expectJson, header)
-import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list)
+import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list, bool)
 import String exposing (fromInt)
 import List exposing (head)
-import Http exposing (jsonBody)
+import Http exposing (jsonBody, expectWhatever)
 import Json.Encode as Encode
 ---------- CONST
 
@@ -52,14 +52,15 @@ config  = case env of
 type alias Model =
     {   op : Operation, 
         operationInput : String,
-        tasks : List Task 
+        tasks : List Task,
+        responseApi : ResponseApi 
     }
 
 type alias Operation =
     {
         operationId:Int,
         operationCode:String,
-        masterMode:String
+        masterMode:String 
     }
 
 type alias Task =
@@ -77,8 +78,15 @@ type alias Task =
 type alias Tasks = 
     List Task
 
+type alias ResponseApi =
+    { success : Bool,
+    status : Int,
+    data: String}
+
+
 type Msg
     = NoOp
+    | DoAction (Result Http.Error ())
     | GotTasks (Result Http.Error (List Task))
     | CallGetTasks
     | SetOperationInput String
@@ -86,6 +94,8 @@ type Msg
     | GotOperation (Result Http.Error Operation)
     | CallSwitchDAMtoNAS
     | CallSwitchNAStoDAM
+    | GotResponseDeleteTask (Result Http.Error ResponseApi)
+    | CallDeleteTask Int
 
 emptyOperation : Operation
 emptyOperation = {
@@ -105,6 +115,15 @@ emptyTask = {
                 modification_date="",
                 master_mode=""}
 
+emptyResponseApi : ResponseApi
+emptyResponseApi = 
+            {
+                success = False,
+                status=0,
+                data="Empty"
+            }
+
+
 init : ( Model, Cmd Msg )
 init =
     ( { 
@@ -112,8 +131,9 @@ init =
         operationInput = config.defaultOperation,
         tasks =
             [ emptyTask
-            ]
-        }
+            ],
+        responseApi = emptyResponseApi
+      }
     , Cmd.none
     )
 
@@ -163,7 +183,7 @@ requestPostDAMtoNAS op =
             , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
             , url = config.server ++ "/operations/" ++ operation ++ "/index/VALID?masterMode="++ antiMasterMode
             , body = emptyBody
-            , expect = expectJson GotOperation operationDecoder
+            , expect = expectWhatever DoAction
             , timeout = Nothing
             , tracker = Nothing
         } 
@@ -193,7 +213,21 @@ requestPatchNAStoDAM op =
                                         ,("Path", Encode.string "master_mode" )
                                         ,("Value", Encode.string antiMasterMode )
                                      ] )
-            , expect = expectJson GotOperation operationDecoder
+                 , expect = expectWhatever DoAction
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
+----------- DELETE TASK
+requestDeleteTask : Int -> Cmd Msg
+requestDeleteTask taskId =
+    Http.request
+        { 
+              method = "DELETE"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
+            , url = config.server ++ "/tasks/" ++ (fromInt taskId)
+            , body = emptyBody
+            , expect = expectJson GotResponseDeleteTask responseDeleteTaskDecoder
             , timeout = Nothing
             , tracker = Nothing
         } 
@@ -243,6 +277,13 @@ operationDecoder =
         (field "label" string)
         (field "master_mode" string)
 
+responseDeleteTaskDecoder : Decoder ResponseApi
+responseDeleteTaskDecoder =
+    map3 ResponseApi
+        (field "success" bool)
+        (field "status" int)
+        (field "data" string)
+
 ---------- UPDATE
 
 
@@ -258,6 +299,10 @@ update msg model =
     case msg of
         NoOp ->
             ( model, Cmd.none )
+
+        DoAction r ->
+
+                        (model, requestGetTasks opInput)
 
         SetOperationInput op ->
             ( {model | operationInput = op }, Cmd.none )
@@ -275,6 +320,8 @@ update msg model =
         CallSwitchNAStoDAM ->
             ( model, requestPatchNAStoDAM modelOp)
 
+        CallDeleteTask taskId ->
+            ( model, requestDeleteTask taskId)
 
 
         GotTasks r ->
@@ -307,7 +354,17 @@ update msg model =
             , requestGetTasks opInput
             )
 
-
+        GotResponseDeleteTask r ->
+            let
+                gotResponseApi=
+                    case r of
+                        Ok apiOK ->
+                            apiOK
+                        Err err ->
+                            emptyResponseApi
+            in
+            ( { model | responseApi = gotResponseApi }
+             , requestGetTasks opInput)
 
 ---------- VIEW
 
@@ -322,20 +379,32 @@ displayTasks tasks =
                 else
                     "block"
          in
+            div [style "display" displayMode]
+            [
+            hr[][],
             div [style "display" displayMode]   
-                (List.map (\t -> table [ style "border" "solid", style "width" "500px"][
+                
+                (List.map (\t -> table [ style "border" "solid", style "width" "100%"][
 
-                tr[][  td[][ text "Id"  ] , td[style "width" "250px"][ text (fromInt t.id)]  ],
-                tr[][  td[][ text "user_validator"  ] , td[][ text t.user_validator]  ],
-                tr[][  td[][ text "status"  ] , td[][ text t.status]  ],
-                tr[][  td[][ text "processed_by"  ] , td[][ text t.processed_by]  ],
-                tr[][  td[][ text "reprise_type"  ] , td[][ text t.reprise_type]  ],
-                tr[][  td[][ text "creation_date"  ] , td[][ text t.creation_date]  ],
-                tr[][  td[][ text "modification_date"  ] , td[][ text t.modification_date]  ],
-                tr[][  td[][ text "master_mode"  ] , td[][ text t.master_mode]  ]
+                tr[][  td[][ text "Id"  ] , td[][ text (fromInt t.id)], td[style "width" "50%"][]  ],
+                tr[][  td[][ text "master_mode"  ] , td[][ text t.master_mode] ] ,
+                 tr[][  td[][ text "status"  ] , td[][ text (t.status ++ " "), 
+                      
+                        if t.status=="Pending" then
+                            button [onClick (CallDeleteTask t.id)][ text "Delete this pending task"]
+                        else
+                            text ""
+                      ]],
+                tr[][  td[][ text "user_validator"  ] , td[][ text t.user_validator] ],
+               
+                tr[][  td[][ text "processed_by"  ] , td[][ text t.processed_by] ],
+                tr[][  td[][ text "reprise_type"  ] , td[][ text t.reprise_type] ],
+                tr[][  td[][ text "creation_date"  ] , td[][ text t.creation_date] ],
+                tr[][  td[][ text "modification_date"  ] , td[][ text t.modification_date] ]
+         
                     
             ]) tasks)
-
+            ]
 
 displayOperation : Operation -> Html Msg
 displayOperation o =
@@ -376,14 +445,14 @@ displayCallMasterMode op lastTask =
     in
     div[
         style "display" displayMode 
-    ][ 
+    ][ hr[][],
         text ("MASTER MODE : ") ,
         button [ attribute enableMasterModeSwitch "",
                  
                     if enableMasterModeSwitch=="disabled" then
                        attribute "title"  "The Master Mode can not be changed because the STATUS of the last task is Pending..."
                     else 
-                       attribute "title"  ""
+                       attribute "title"  ("Switch the current Master Mode "++masterModeStr++" to "++antiMasterModeStr)
                     ,
             if antiMasterModeStr=="DAM" then
                 onClick CallSwitchNAStoDAM
@@ -424,9 +493,10 @@ view model =
                 , button [onClick CallGetOperation ][text "OK"]
            ]
         , displayOperation model.op
+       
           , displayCallMasterMode model.op (getLastTask modelTasks)
          -- , displayCallTasks model.op
-         , hr[][]
+       
           , displayTasks modelTasks
           
           

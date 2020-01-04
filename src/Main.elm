@@ -1,19 +1,20 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, a, button, div, img, text, input, button, table, tr, td)
-import Html.Attributes exposing (src, style, value, placeholder)
+import Html exposing (Html, a, button, div, img, text, input, button, table, tr, td, hr)
+import Html.Attributes exposing (src, style, value, placeholder, attribute)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (get, request, emptyBody, expectJson, header)
 import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list)
 import String exposing (fromInt)
 import List exposing (head)
-
+import Http exposing (jsonBody)
+import Json.Encode as Encode
 ---------- CONST
 
 env : String
-env = "Prod"
--- env = "CI"
+--env = "Prod"
+env = "CI"
 
 type alias Config =
     {
@@ -76,20 +77,15 @@ type alias Task =
 type alias Tasks = 
     List Task
 
-
-type MasterMode =
-        NONE
-        | DAM 
-        | NAS
-
-
-
 type Msg
     = NoOp
     | GotTasks (Result Http.Error (List Task))
     | CallGetTasks
     | SetOperationInput String
+    | CallGetOperation
     | GotOperation (Result Http.Error Operation)
+    | CallSwitchDAMtoNAS
+    | CallSwitchNAStoDAM
 
 emptyOperation : Operation
 emptyOperation = {
@@ -121,14 +117,6 @@ init =
     , Cmd.none
     )
 
-
----------- API 
-apiGetTasks : String
-apiGetTasks = config.server ++ "/tasks/"
-
-apiGetOperation : String
-apiGetOperation = config.server ++ "/operations/"
-
 ---------- REQUEST
 requestGetTasks : String -> Cmd Msg
 requestGetTasks op =
@@ -136,7 +124,7 @@ requestGetTasks op =
         { 
               method = "GET"
             , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
-            , url = apiGetTasks ++ op
+            , url = config.server ++ "/tasks/" ++ op
             , body = emptyBody
             , expect = expectJson GotTasks tasksDecoder
             , timeout = Nothing
@@ -149,12 +137,67 @@ requestGetOperation op =
         { 
               method = "GET"
             , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
-            , url = apiGetOperation ++ op
+            , url = config.server ++ "/operations/" ++ op
             , body = emptyBody
             , expect = expectJson GotOperation operationDecoder
             , timeout = Nothing
             , tracker = Nothing
         } 
+
+
+--  ----------- DAM TO NAS --> réindexe
+--   return post(
+--     `${MEDIA_API_URI}/operations/${opCode}/index/VALID?masterMode=${saleMode}`,
+--     {},
+--     { headers }
+--   ) 
+requestPostDAMtoNAS : Operation -> Cmd Msg
+requestPostDAMtoNAS op =
+    let
+        operation=op.operationCode
+        antiMasterMode= toAntiMasterMode op.masterMode
+    in
+    Http.request
+        { 
+              method = "POST"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
+            , url = config.server ++ "/operations/" ++ operation ++ "/index/VALID?masterMode="++ antiMasterMode
+            , body = emptyBody
+            , expect = expectJson GotOperation operationDecoder
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
+
+
+-- ----------- NAS to DAM --> change mode
+--   patch(
+--     `${MEDIA_API_URI}/operations/${resp.id}`,
+--     JSON.stringify({ Op: 'UPDATE', Path: 'master_mode', Value: saleMode }),
+--     {
+--       headers: createAuthHeaders({ 'content-type': 'application/json' })
+--     }
+requestPatchNAStoDAM : Operation -> Cmd Msg
+requestPatchNAStoDAM op =
+    let
+        operationId=op.operationId
+        antiMasterMode= toAntiMasterMode op.masterMode
+    in
+    Http.request
+        { 
+              method = "PATCH"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
+            , url = config.server ++ "/operations/" ++ (fromInt operationId)
+            , body = jsonBody (Encode.object [ 
+                                         ("Op", Encode.string "UPDATE" )
+                                        ,("Path", Encode.string "master_mode" )
+                                        ,("Value", Encode.string antiMasterMode )
+                                     ] )
+            , expect = expectJson GotOperation operationDecoder
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
 
 ---------- helper   
 
@@ -207,6 +250,11 @@ operationDecoder =
         
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        opInput = model.operationInput
+        modelOp = model.op
+ 
+    in
     case msg of
         NoOp ->
             ( model, Cmd.none )
@@ -216,7 +264,18 @@ update msg model =
 
 
         CallGetTasks ->
-            ( model, requestGetTasks model.operationInput)
+            ( model, requestGetTasks opInput)
+
+        CallGetOperation ->
+            ( {model | tasks = [emptyTask]}, requestGetOperation opInput)
+
+        CallSwitchDAMtoNAS -> 
+            ( model, requestPostDAMtoNAS modelOp)
+
+        CallSwitchNAStoDAM ->
+            ( model, requestPatchNAStoDAM modelOp)
+
+
 
         GotTasks r ->
             let
@@ -230,7 +289,7 @@ update msg model =
             ( { model
                 | tasks =getTasks
               }
-            , requestGetOperation model.operationInput
+            , Cmd.none
             )
         
         GotOperation r ->
@@ -245,7 +304,7 @@ update msg model =
             ( { model
                 | op=gotOperation
               }
-            , Cmd.none
+            , requestGetTasks opInput
             )
 
 
@@ -296,8 +355,8 @@ displayOperation o =
                     
          ]
 
-displayMasterMode : Operation ->  Html Msg
-displayMasterMode op =
+displayCallMasterMode : Operation -> Task ->  Html Msg
+displayCallMasterMode op lastTask =
     let
         displayMode=if op.masterMode=="NONE" then    
                 "none"
@@ -306,16 +365,50 @@ displayMasterMode op =
         
         masterModeStr=op.masterMode
         antiMasterModeStr= toAntiMasterMode op.masterMode
+
+        statusOfLastTask = lastTask.status
+
+        enableMasterModeSwitch =
+            if statusOfLastTask=="Pending" then
+                "disabled"
+            else
+                "enabled"
     in
     div[
         style "display" displayMode 
     ][ 
-        text ("MASTER MODE : "++ masterModeStr) ,
-        button [][ text ("Convert to "++antiMasterModeStr)]
-
+        text ("MASTER MODE : ") ,
+        button [ attribute enableMasterModeSwitch "",
+                 
+                    if enableMasterModeSwitch=="disabled" then
+                       attribute "title"  "The Master Mode can not be changed because the STATUS of the last task is Pending..."
+                    else 
+                       attribute "title"  ""
+                    ,
+            if antiMasterModeStr=="DAM" then
+                onClick CallSwitchNAStoDAM
+            else
+                onClick CallSwitchDAMtoNAS
+            
+             ][ text (masterModeStr++" to "++antiMasterModeStr)]
+        
     ]
     
+displayCallTasks : Operation ->  Html Msg
+displayCallTasks op =
+    let
+        displayMode=if op.operationId == -1 then    
+                "none"
+            else
+                "block"
+    in
+    div[
+        style "display" displayMode 
+    ][ 
+        text ("TASKS : ") ,
+        button [ onClick CallGetTasks ][ text ("Voir les Tasks de "++ op.operationCode)]
 
+    ]
 
 view : Model -> Html Msg
 view model =
@@ -323,15 +416,19 @@ view model =
         modelOp=model.op
         modelTasks=model.tasks
     in
-    div []
+    div [style "margin" "20px"]
         [
           div [][
                 
-                input [ onInput SetOperationInput, value model.operationInput, placeholder "Opération" ][], button [onClick CallGetTasks ][text "OK"]
+                input [ onInput SetOperationInput, value model.operationInput, placeholder "Opération" ][]
+                , button [onClick CallGetOperation ][text "OK"]
            ]
         , displayOperation model.op
-          , displayMasterMode model.op
+          , displayCallMasterMode model.op (getLastTask modelTasks)
+         -- , displayCallTasks model.op
+         , hr[][]
           , displayTasks modelTasks
+          
           
 
       

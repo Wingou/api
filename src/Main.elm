@@ -5,9 +5,9 @@ import Html exposing (Html, a, button, div, img, text, input, button, table, tr,
 import Html.Attributes exposing (src, style, value, placeholder, attribute)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (get, request, emptyBody, expectJson, header)
-import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list, bool)
+import Json.Decode exposing (Decoder, at, field, int, map8, map3,  string, map, list, bool, map5, nullable, maybe)
 import String exposing (fromInt)
-import List exposing (head)
+import List exposing (head , sortBy, reverse)
 import Http exposing (jsonBody, expectWhatever)
 import Json.Encode as Encode
 ---------- CONST
@@ -34,7 +34,8 @@ defaultOperationCI: String
 defaultOperationCI = "LADC5"    
 
 defaultOperationProd: String
-defaultOperationProd = "GNORWAY38"    
+---defaultOperationProd = "GNORWAY38"   
+defaultOperationProd = "AMARTINI2"  ------- a des Workflows
 
 config: Config
 config  = case env of
@@ -52,8 +53,9 @@ config  = case env of
 type alias Model =
     {   op : Operation, 
         operationInput : String,
-        tasks : List Task,
-        responseApi : ResponseApi 
+        tasks : Tasks,
+        responseApi : ResponseApi,
+        workflows : Workflows
     }
 
 type alias Operation =
@@ -83,6 +85,21 @@ type alias ResponseApi =
     status : Int,
     data: String}
 
+type alias Workflow =
+    {
+        id: String,
+        status: String,
+        user : String,
+        --  aborted: String,
+        --  ended: String,
+         created: String,
+         started: String
+    }
+
+type alias Workflows =
+    List Workflow
+
+ 
 
 type Msg
     = NoOp
@@ -96,6 +113,10 @@ type Msg
     | CallSwitchNAStoDAM
     | GotResponseDeleteTask (Result Http.Error ResponseApi)
     | CallDeleteTask Int
+    | GotWorkflows (Result Http.Error Workflows)
+    | CallWorkflows
+    | CallAbortWorkflow String
+    | GotAbortWorkflowDone (Result Http.Error ())
 
 emptyOperation : Operation
 emptyOperation = {
@@ -123,6 +144,19 @@ emptyResponseApi =
                 data="Empty"
             }
 
+emptyWorkflow : Workflow
+emptyWorkflow = 
+        {
+        id="-1",
+        status="INIT",
+        user="Nobody",
+        -- aborted="",
+        -- ended="",
+        created="",
+        started=""
+    }
+    
+
 
 init : ( Model, Cmd Msg )
 init =
@@ -132,7 +166,8 @@ init =
         tasks =
             [ emptyTask
             ],
-        responseApi = emptyResponseApi
+        responseApi = emptyResponseApi,
+        workflows = [emptyWorkflow ]
       }
     , Cmd.none
     )
@@ -233,6 +268,41 @@ requestDeleteTask taskId =
         } 
 
 
+------------- retrieve the last workflows
+-- export const retrieveWorkflows = opCode => {
+--   const headers = createAuthHeaders()
+--   return get(`${MEDIA_API_URI}/operations/${opCode}/workflows`, { headers })
+-- }
+requestGetWorkflows : Operation -> Cmd Msg
+requestGetWorkflows op =
+    Http.request
+        { 
+              method = "GET"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
+            , url = config.server ++ "/operations/" ++ op.operationCode ++ "/workflows"
+            , body = emptyBody
+            , expect = expectJson GotWorkflows workflowsDecoder
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
+-- export const abortWorkflow = id => {
+--   const headers = createAuthHeaders()
+--   return post(`${MEDIA_API_URI}/workflows/${id}/abort`, {}, { headers })
+-- }
+requestAbortWorkflow : String -> Cmd Msg
+requestAbortWorkflow workflowId =
+    Http.request
+        { 
+              method = "POST"
+            , headers = [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg=="]
+            , url = config.server ++ "/workflows/" ++ workflowId ++ "/abort"
+            , body = emptyBody
+            , expect = expectWhatever GotAbortWorkflowDone
+            , timeout = Nothing
+            , tracker = Nothing
+        } 
+
 ---------- helper   
 
 toAntiMasterMode : String -> String
@@ -251,6 +321,14 @@ getLastTask t =
                             Nothing ->
                                 emptyTask
 
+getLastWorkflow : Workflows -> Workflow
+getLastWorkflow w =
+                    case head w of
+                            Just justWorkflow ->
+                                justWorkflow
+
+                            Nothing ->
+                                emptyWorkflow
 
 ---------- Decoders 
 taskDecoder : Decoder Task
@@ -268,7 +346,7 @@ taskDecoder =
 
 tasksDecoder : Decoder (List Task)
 tasksDecoder =
-    map identity (list taskDecoder)
+    list taskDecoder
        
 operationDecoder : Decoder Operation
 operationDecoder =
@@ -283,6 +361,22 @@ responseDeleteTaskDecoder =
         (field "success" bool)
         (field "status" int)
         (field "data" string)
+
+workflowsDecoder : Decoder Workflows
+workflowsDecoder =
+    at ["Items"] (list workflowDecoder)
+
+workflowDecoder : Decoder Workflow
+workflowDecoder =
+    map5 Workflow
+        (field "Id" string)
+        (field "Status" string)
+        (field "User" string)
+      --  (field "Aborted" string)
+       -- (field "Ended" string)
+        (field "Created"  string)
+        (field "Started"  string)
+
 
 ---------- UPDATE
 
@@ -301,7 +395,6 @@ update msg model =
             ( model, Cmd.none )
 
         DoAction r ->
-
                         (model, requestGetTasks opInput)
 
         SetOperationInput op ->
@@ -312,7 +405,7 @@ update msg model =
             ( model, requestGetTasks opInput)
 
         CallGetOperation ->
-            ( {model | tasks = [emptyTask]}, requestGetOperation opInput)
+            ( {model | tasks = [emptyTask], workflows=[emptyWorkflow]}, requestGetOperation opInput)
 
         CallSwitchDAMtoNAS -> 
             ( model, requestPostDAMtoNAS modelOp)
@@ -323,6 +416,11 @@ update msg model =
         CallDeleteTask taskId ->
             ( model, requestDeleteTask taskId)
 
+        CallWorkflows ->
+            (model, requestGetWorkflows modelOp)
+
+        CallAbortWorkflow workflowId->
+            (model, requestAbortWorkflow workflowId)
 
         GotTasks r ->
             let
@@ -366,7 +464,69 @@ update msg model =
             ( { model | responseApi = gotResponseApi }
              , requestGetTasks opInput)
 
+        GotWorkflows r ->
+            let 
+                gotWorkflows=
+                    case r of
+                        Ok w ->
+                            w
+                        Err err ->
+                            [
+                                    {
+                                       id="-1",
+                                       user ="ERRORRRRR",
+                                       status="ERRORRRRR",
+                                        -- aborted="ERRORRRRR",
+                                        -- ended="ERRORRRRR",
+                                        created="ERRORRRRR",
+                                        started="ERRRORRRRRRRRRRRRRR"
+                                     }                
+                            ]
+            in
+            ({model | workflows =gotWorkflows} , Cmd.none)
+
+        GotAbortWorkflowDone r ->
+          (model, requestGetWorkflows modelOp)
+
 ---------- VIEW
+
+displayWorkflows : Workflows -> Html Msg
+displayWorkflows workflows =
+    let 
+
+        workflowsSortedByStarted = reverse (sortBy .started workflows)
+
+        lastWorkflow = getLastWorkflow workflowsSortedByStarted
+    
+        displayMode=
+            if lastWorkflow.id == "-1" then    
+                "none"
+         else
+                "block"
+    in
+    div [style "display" displayMode]
+        [
+         hr[][],
+         div []
+        (List.map (\w -> 
+           table [ style "border" "solid", style "width" "100%"]
+           [
+                tr[][ td[style "width" "30%"][ text "PUBLICATION WORKFLOWS" ], td[style "width" "70%"][
+                    if w.id==lastWorkflow.id && w.status/="ABORTED" && w.status/="ENDED" then
+                        button [ onClick (CallAbortWorkflow w.id) ][ text "Abort this Publication"] 
+                    else
+                        text ""
+      
+                ] ],
+                tr[][  td[][ text "Id"  ] , td[][ text w.id]  ],
+                tr[][  td[][ text "User"  ] , td[][ text w.user] ] ,
+                tr[][  td[][ text "Status"  ] , td[][ text (w.status ++ " ") ]],
+                tr[][  td[][ text "Created"  ] , td[][ text w.created] ],
+                tr[][  td[][ text "Started"  ] , td[][ text w.started] ]       
+            ]
+           ) workflowsSortedByStarted)
+        ]
+
 
 displayTasks : Tasks -> Html Msg
 displayTasks tasks =
@@ -382,19 +542,19 @@ displayTasks tasks =
             div [style "display" displayMode]
             [
             hr[][],
-            div [style "display" displayMode]   
+            div []   
                 
                 (List.map (\t -> table [ style "border" "solid", style "width" "100%"][
-
-                tr[][  td[][ text "Id"  ] , td[][ text (fromInt t.id)], td[style "width" "50%"][]  ],
+          tr[][ td[style "width" "30%"][ text "TASKS"], td[style "width" "70%"][
+                            if t.status=="Pending" then
+                                button [onClick (CallDeleteTask t.id)][ text "Delete this task : PENDING"]
+                            else
+                                text ""
+                        
+          ] ],
+                tr[][  td[][ text "Id"  ] , td[][ text (fromInt t.id)] ],
                 tr[][  td[][ text "master_mode"  ] , td[][ text t.master_mode] ] ,
-                 tr[][  td[][ text "status"  ] , td[][ text (t.status ++ " "), 
-                      
-                        if t.status=="Pending" then
-                            button [onClick (CallDeleteTask t.id)][ text "Delete this pending task"]
-                        else
-                            text ""
-                      ]],
+                 tr[][  td[][ text "status"  ] , td[][ text t.status]],
                 tr[][  td[][ text "user_validator"  ] , td[][ text t.user_validator] ],
                
                 tr[][  td[][ text "processed_by"  ] , td[][ text t.processed_by] ],
@@ -446,7 +606,7 @@ displayCallMasterMode op lastTask =
     div[
         style "display" displayMode 
     ][ hr[][],
-        text ("MASTER MODE : ") ,
+
         button [ attribute enableMasterModeSwitch "",
                  
                     if enableMasterModeSwitch=="disabled" then
@@ -459,9 +619,23 @@ displayCallMasterMode op lastTask =
             else
                 onClick CallSwitchDAMtoNAS
             
-             ][ text (masterModeStr++" to "++antiMasterModeStr)]
+             ][ text ("Switch " ++ masterModeStr++" to "++antiMasterModeStr)]
         
     ]
+
+displayCallWorkflows : Operation -> Html Msg
+displayCallWorkflows op = 
+    let
+        displayMode=if op.operationId == -1 then    
+                "none"
+            else
+                "block"
+    in
+    div[
+           style "display" displayMode 
+    ][
+        button [ onClick CallWorkflows ][ text "Display Publication Workflows"]
+     ]
     
 displayCallTasks : Operation ->  Html Msg
 displayCallTasks op =
@@ -484,6 +658,7 @@ view model =
     let
         modelOp=model.op
         modelTasks=model.tasks
+        modelWorkflows=model.workflows
     in
     div [style "margin" "20px"]
         [
@@ -495,8 +670,9 @@ view model =
         , displayOperation model.op
        
           , displayCallMasterMode model.op (getLastTask modelTasks)
+          , displayCallWorkflows model.op
          -- , displayCallTasks model.op
-       
+           , displayWorkflows modelWorkflows
           , displayTasks modelTasks
           
           

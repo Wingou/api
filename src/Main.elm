@@ -40,7 +40,7 @@ config =
 
     else
         { server = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
-        , defaultOperation = "LADC5"
+        , defaultOperation = ""
         }
 
 
@@ -54,6 +54,8 @@ type alias Model =
     , tasks : Tasks
     , responseApi : ResponseApi
     , workflows : Workflows
+    , displayWorkflows : Bool
+    , displayTasks : Bool
     }
 
 
@@ -135,6 +137,8 @@ init =
       , tasks = [ emptyTask ]
       , responseApi = emptyResponseApi
       , workflows = [ emptyWorkflow ]
+      , displayTasks = False
+      , displayWorkflows = False
       }
     , Cmd.none
     )
@@ -338,7 +342,13 @@ getLastWorkflow w =
         Nothing ->
             emptyWorkflow
 
-
+fromBoolToString : Bool -> String
+fromBoolToString b = 
+    case b of
+        True -> 
+            "ON"
+        False -> 
+            "OFF"
 
 ---------- DECODERS
 
@@ -416,22 +426,30 @@ update msg model =
             ( { model | operationInput = op }, Cmd.none )
 
         CallGetTasks ->
-            ( model, requestGetTasks opInput )
+            case model.displayTasks of  
+                False ->
+                    ( {model | displayTasks=True, displayWorkflows=False } , requestGetTasks opInput  )
+                True -> 
+                    ( {model | displayTasks=False  } , Cmd.none )
 
         CallGetOperation ->
-            ( { model | tasks = [ emptyTask ], workflows = [ emptyWorkflow ] }, requestGetOperation opInput )
+            ( { model | tasks = [ emptyTask ], workflows = [ emptyWorkflow ], displayWorkflows=False, displayTasks=False }, requestGetOperation opInput )
 
         CallSwitchDAMtoNAS ->
-            ( model, requestPostDAMtoNAS modelOp )
+            ( {model | displayWorkflows=False, displayTasks=True }, requestPostDAMtoNAS modelOp )
 
         CallSwitchNAStoDAM ->
-            ( model, requestPatchNAStoDAM modelOp )
+            ( {model | displayWorkflows=False, displayTasks=True }, requestPatchNAStoDAM modelOp )
 
         CallDeleteTask taskId ->
             ( model, requestDeleteTask taskId )
 
         CallGetWorkflows ->
-            ( model, requestGetWorkflows modelOp )
+            case model.displayWorkflows of  
+                False ->
+                    ( {model | displayWorkflows=True, displayTasks=False } , requestGetWorkflows modelOp )
+                True -> 
+                    ( {model | displayWorkflows=False } , Cmd.none )
 
         CallAbortWorkflow workflowId ->
             ( model, requestAbortWorkflow workflowId )
@@ -507,9 +525,18 @@ update msg model =
 
 ---------- DISPLAYS
 
+displayFooter : Html Msg
+displayFooter =
+    div[][
+        hr[][]
+        , div [attribute "align" "center",
+            style "font-family" "arial",
+            style "font-size" "12px"
+        ][text "Pamela v0.1 - Application Support - Média Production - Janvier 2020"]
+    ]
 
-displayWorkflows : Workflows -> Html Msg
-displayWorkflows workflows =
+displayWorkflows : Workflows -> Bool -> Html Msg
+displayWorkflows workflows display =
     let
         workflowsSortedByStarted =
             reverse (sortBy .started workflows)
@@ -518,11 +545,11 @@ displayWorkflows workflows =
             getLastWorkflow workflowsSortedByStarted
 
         displayMode =
-            if lastWorkflow.id == "-1" then
-                "none"
-
-            else
-                "block"
+            case display of
+                False -> 
+                    "none"
+                True ->
+                    "block"
     in
     div [ style "display" displayMode ]
         [ hr [] []
@@ -552,18 +579,18 @@ displayWorkflows workflows =
         ]
 
 
-displayTasks : Tasks -> Html Msg
-displayTasks tasks =
+displayTasks : Tasks -> Bool -> Html Msg
+displayTasks tasks display =
     let
         lastTask =
             getLastTask tasks
 
         displayMode =
-            if lastTask.id == -1 then
-                "none"
-
-            else
-                "block"
+            case display of
+                False -> 
+                    "none"
+                True ->
+                    "block"
     in
     div [ style "display" displayMode ]
         [ hr [] []
@@ -615,15 +642,18 @@ displayOperation o =
         ]
 
 
-displayCallMasterMode : Operation -> Task -> Html Msg
-displayCallMasterMode op lastTask =
+displayCallMasterMode : Operation -> Task -> Bool -> Html Msg
+displayCallMasterMode op lastTask display =
     let
         displayMode =
             if op.masterMode == "NONE" then
                 "none"
 
             else
-                "block"
+                if display==True then
+                    "block"
+                else
+                    "none"
 
         masterModeStr =
             op.masterMode
@@ -662,8 +692,8 @@ displayCallMasterMode op lastTask =
         ]
 
 
-displayCallGetWorkflows : Operation -> Html Msg
-displayCallGetWorkflows op =
+displayCallGetWorkflows : Operation -> Bool ->Html Msg
+displayCallGetWorkflows op display =
     let
         displayMode =
             if op.operationId == -1 then
@@ -675,12 +705,12 @@ displayCallGetWorkflows op =
     div
         [ style "display" displayMode
         ]
-        [ button [ onClick CallGetWorkflows ] [ text "Display Publication Workflows" ]
+        [ button [ onClick CallGetWorkflows ] [ text ("Publication Workflows : "++fromBoolToString display) ]
         ]
 
 
-displayCallTasks : Operation -> Html Msg
-displayCallTasks op =
+displayCallTasks : Operation -> Bool -> Html Msg
+displayCallTasks op display =
     let
         displayMode =
             if op.operationId == -1 then
@@ -692,8 +722,7 @@ displayCallTasks op =
     div
         [ style "display" displayMode
         ]
-        [ text "TASKS : "
-        , button [ onClick CallGetTasks ] [ text ("Voir les Tasks de " ++ op.operationCode) ]
+        [ button [ onClick CallGetTasks ] [ text ("Tasks : " ++ (fromBoolToString display)) ]
         ]
 
 
@@ -719,12 +748,16 @@ view model =
             , button [ onClick CallGetOperation ] [ text "OK" ]
             ]
         , displayOperation model.op
-        , displayCallMasterMode model.op (getLastTask modelTasks)
-        , displayCallGetWorkflows model.op
+        , hr[][]
+        , div [style "display" "flex"][
+            div[style "flex" "1"][displayCallTasks model.op model.displayTasks]
+            , div[style "flex" "1"][ displayCallGetWorkflows model.op model.displayWorkflows]
+        ]
+        , displayCallMasterMode model.op (getLastTask modelTasks) model.displayTasks
 
-        -- , displayCallTasks model.op
-        , displayWorkflows modelWorkflows
-        , displayTasks modelTasks
+        , displayWorkflows modelWorkflows model.displayWorkflows
+        , displayTasks modelTasks model.displayTasks
+        , displayFooter
         ]
 
 

@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, a, button, div, hr, img, input, table, td, text, tr)
+import Html exposing (Html, a, button, div, hr, img, input, table, td, text, tr, br)
 import Html.Attributes exposing (attribute, placeholder, src, style, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (Header, emptyBody, expectJson, expectWhatever, get, header, jsonBody, request)
@@ -12,17 +12,19 @@ import String exposing (fromInt)
 
 
 
+
 ---------- CONFIG
 
 
 type Env
     = CI
+    | PREPROD
     | PROD
 
 
 env : Env
-env =
-    CI
+env = PROD
+      
 
 
 type alias Config =
@@ -33,16 +35,21 @@ type alias Config =
 
 config : Config
 config =
-    if env == PROD then
-        { server = "http://mediaapi.vpback.vpgrp.io/api/v1"
-        , defaultOperation = "AMARTINI2" -- GNORWAY38
-        }
+    case env of
+        PROD ->
+            { server = "http://mediaapi.vpback.vpgrp.io/api/v1"
+            , defaultOperation = "" -- GNORWAY38 -- AMARTINI2
+            }
 
-    else
-        { server = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
-        , defaultOperation = ""
-        }
+        PREPROD ->
+            { server = "http://mediaapi-pp.vpback.vpgrp.io/api/v1"
+            , defaultOperation = "" -- NSCASHMERE38
+            }
 
+        CI ->
+            { server = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
+            , defaultOperation = ""
+            }
 
 
 ---------- TYPES
@@ -123,7 +130,8 @@ type Msg
     | GotWorkflows (Result Http.Error Workflows)
     | CallAbortWorkflow String
     | GotAbortWorkflow (Result Http.Error ())
-    | DoAction (Result Http.Error ())
+    | GotSwitchDAMtoNAS (Result Http.Error ())
+    | GotSwithcNAStoDAM (Result Http.Error ())
 
 
 
@@ -178,9 +186,7 @@ emptyWorkflow =
     { id = "-1"
     , status = "INIT"
     , user = "Nobody"
-    , -- aborted="",
-      -- ended="",
-      created = ""
+    , created = ""
     , started = ""
     }
 
@@ -234,7 +240,7 @@ requestPostDAMtoNAS op =
         , headers = apiHeader
         , url = config.server ++ "/operations/" ++ operation ++ "/index/VALID?masterMode=" ++ antiMasterMode
         , body = emptyBody
-        , expect = expectWhatever DoAction
+        , expect = expectWhatever GotSwitchDAMtoNAS
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -261,7 +267,7 @@ requestPatchNAStoDAM op =
                     , ( "Value", Encode.string antiMasterMode )
                     ]
                 )
-        , expect = expectWhatever DoAction
+        , expect = expectWhatever GotSwithcNAStoDAM
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -350,6 +356,17 @@ fromBoolToString b =
         False -> 
             "OFF"
 
+
+fromEnvToString : Env -> String
+fromEnvToString environnement = 
+    case environnement of
+        PROD -> 
+            "PROD"
+        PREPROD -> 
+            "PREPROD"
+        CI -> 
+            "CI"
+
 ---------- DECODERS
 
 
@@ -418,9 +435,6 @@ update msg model =
     case msg of
         NoOp ->
             ( model, Cmd.none )
-
-        DoAction r ->
-            ( model, requestGetTasks opInput )
 
         SetOperationInput op ->
             ( { model | operationInput = op }, Cmd.none )
@@ -521,7 +535,11 @@ update msg model =
         GotAbortWorkflow r ->
             ( model, requestGetWorkflows modelOp )
 
+        GotSwithcNAStoDAM r ->
+            ( { model | displayTasks=True }, requestGetOperation opInput )
 
+        GotSwitchDAMtoNAS r ->
+            ( model, requestGetTasks opInput )
 
 ---------- DISPLAYS
 
@@ -746,6 +764,8 @@ view model =
         [ div []
             [ input [ onInput SetOperationInput, value model.operationInput, placeholder "Opération" ] []
             , button [ onClick CallGetOperation ] [ text "OK" ]
+            , br[][]
+            , text ("Environnement : " ++ fromEnvToString env)
             ]
         , displayOperation model.op
         , hr[][]

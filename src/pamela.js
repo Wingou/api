@@ -1,17 +1,3 @@
-<!DOCTYPE HTML>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Main</title>
-  <style>body { padding: 0; margin: 0; }</style>
-</head>
-
-<body>
-
-<pre id="elm"></pre>
-
-<script>
-try {
 (function(scope){
 'use strict';
 
@@ -7341,6 +7327,9 @@ var $elm$html$Html$Attributes$stringProperty = F2(
 			$elm$json$Json$Encode$string(string));
 	});
 var $elm$html$Html$Attributes$placeholder = $elm$html$Html$Attributes$stringProperty('placeholder');
+var $author$project$Main$track = function (label) {
+	return A2($elm$html$Html$Attributes$attribute, 'data-vpa-id', label);
+};
 var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
 var $author$project$Main$view = function (model) {
 	var modelWorkflows = model.workflows;
@@ -7375,7 +7364,8 @@ var $author$project$Main$view = function (model) {
 						$elm$html$Html$button,
 						_List_fromArray(
 							[
-								$elm$html$Html$Events$onClick($author$project$Main$CallGetOperation)
+								$elm$html$Html$Events$onClick($author$project$Main$CallGetOperation),
+								$author$project$Main$track(model.operationInput)
 							]),
 						_List_fromArray(
 							[
@@ -7435,23 +7425,3 @@ var $author$project$Main$main = $elm$browser$Browser$element(
 	});
 _Platform_export({'Main':{'init':$author$project$Main$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
-
-  var app = Elm.Main.init({ node: document.getElementById("elm") });
-}
-catch (e)
-{
-  // display initialization errors (e.g. bad flags, infinite recursion)
-  var header = document.createElement("h1");
-  header.style.fontFamily = "monospace";
-  header.innerText = "Initialization Error";
-  var pre = document.getElementById("elm");
-  document.body.insertBefore(header, pre);
-  pre.innerText = e;
-  throw e;
-}
-</script>
-<script id="o2-kpi-include-script" data-vpa-app="Pamela" type="text/javascript" src="https://o2-kpi-vpa.int.sourcing.vpgrp.io/vpa.js" async> </script>
-
-
-</body>
-</html>

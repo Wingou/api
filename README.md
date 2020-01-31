@@ -44,8 +44,8 @@ Starter Kit for create a new project
 > git push
 
 ## Pour builder le projet afin de le déployer
-
-> elm make src/Main.elm
+## > elm make src/Main.elm
+> elm make src/Main.elm --output=src/pamela.js 
 
 # FireBase : mettre en ligne le projet
 

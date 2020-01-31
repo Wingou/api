@@ -1,8 +1,8 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, a, button, div, hr, img, input, table, td, text, tr, br)
-import Html.Attributes exposing (attribute, placeholder, src, style, value)
+import Html exposing (Html, Attribute, a, button, div, hr, img, input, table, td, text, tr, br)
+import Html.Attributes exposing ( attribute, placeholder, src, style, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (Header, emptyBody, expectJson, expectWhatever, get, header, jsonBody, request)
 import Json.Decode exposing (Decoder, at, bool, field, int, list, map, map3, map5, map8, maybe, nullable, string)
@@ -132,6 +132,8 @@ type Msg
     | GotAbortWorkflow (Result Http.Error ())
     | GotSwitchDAMtoNAS (Result Http.Error ())
     | GotSwithcNAStoDAM (Result Http.Error ())
+    | CallAbortTask Int
+    | GotAbortTask (Result Http.Error ())
 
 
 
@@ -285,7 +287,25 @@ requestDeleteTask taskId =
         , tracker = Nothing
         }
 
-
+requestAbortTask : Int -> Cmd Msg
+requestAbortTask taskId =
+    Http.request
+        { method = "PATCH"
+        , headers = apiHeader
+        , url = config.server ++ "/tasks/" ++ fromInt taskId
+        , body = 
+            jsonBody
+                (Encode.object
+                    [ ( "Op", Encode.string "UPDATE" )
+                    , ( "Path", Encode.string "status" )
+                    , ( "Value", Encode.string "Aborted" )
+                    ]
+                )
+        , expect = expectWhatever GotAbortTask
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+    
 requestGetWorkflows : Operation -> Cmd Msg
 requestGetWorkflows op =
     Http.request
@@ -353,6 +373,7 @@ fromBoolToString b =
     case b of
         True -> 
             "ON"
+
         False -> 
             "OFF"
 
@@ -362,10 +383,14 @@ fromEnvToString environnement =
     case environnement of
         PROD -> 
             "PROD"
+
         PREPROD -> 
             "PREPROD"
+
         CI -> 
             "CI"
+
+
 
 ---------- DECODERS
 
@@ -468,6 +493,9 @@ update msg model =
         CallAbortWorkflow workflowId ->
             ( model, requestAbortWorkflow workflowId )
 
+        CallAbortTask taskId ->
+            ( model, requestAbortTask taskId )
+
         GotTasks r ->
             let
                 getTasks =
@@ -522,13 +550,7 @@ update msg model =
                             w
 
                         Err err ->
-                            [ { id = "-1"
-                              , user = "ERRORRRRR"
-                              , status = "ERRORRRRR"
-                              , created = "ERRORRRRR"
-                              , started = "ERRRORRRRRRRRRRRRRR"
-                              }
-                            ]
+                            [ emptyWorkflow ]
             in
             ( { model | workflows = gotWorkflows }, Cmd.none )
 
@@ -541,6 +563,10 @@ update msg model =
         GotSwitchDAMtoNAS r ->
             ( model, requestGetTasks opInput )
 
+        GotAbortTask r ->
+            ( model, requestGetTasks opInput )
+
+
 ---------- DISPLAYS
 
 displayFooter : Html Msg
@@ -550,7 +576,7 @@ displayFooter =
         , div [attribute "align" "center",
             style "font-family" "arial",
             style "font-size" "12px"
-        ][text "Pamela v0.1 - Application Support - Média Production - Janvier 2020"]
+        ][text "Pamela v0.1 - Application Support - Media Production - Janvier 2020"]
     ]
 
 displayWorkflows : Workflows -> Bool -> Html Msg
@@ -567,7 +593,10 @@ displayWorkflows workflows display =
                 False -> 
                     "none"
                 True ->
-                    "block"
+                    if lastWorkflow.id=="-1" then
+                        "none"
+                    else
+                        "block"
     in
     div [ style "display" displayMode ]
         [ hr [] []
@@ -577,7 +606,7 @@ displayWorkflows workflows display =
                     table [ style "border" "solid", style "width" "100%" ]
                         [ tr []
                             [ td [ style "width" "30%" ] [ text "PUBLICATION WORKFLOWS" ]
-                            , td [ style "width" "70%" ]
+                            , td [ style "width" "70%"]
                                 [ if w.id == lastWorkflow.id && w.status /= "ABORTED" && w.status /= "ENDED" then
                                     button [ onClick (CallAbortWorkflow w.id) ] [ text "Abort this Publication" ]
 
@@ -587,7 +616,7 @@ displayWorkflows workflows display =
                             ]
                         , tr [] [ td [] [ text "Id" ], td [] [ text w.id ] ]
                         , tr [] [ td [] [ text "User" ], td [] [ text w.user ] ]
-                        , tr [] [ td [] [ text "Status" ], td [] [ text (w.status ++ " ") ] ]
+                        , tr [] [ td [] [ text "Status" ], td [ style "color" "blue"  ] [ text (w.status ++ " ") ] ]
                         , tr [] [ td [] [ text "Created" ], td [] [ text w.created ] ]
                         , tr [] [ td [] [ text "Started" ], td [] [ text w.started ] ]
                         ]
@@ -620,14 +649,14 @@ displayTasks tasks display =
                             [ td [ style "width" "30%" ] [ text "TASKS" ]
                             , td [ style "width" "70%" ]
                                 [ if t.status == "Pending" then
-                                    button [ onClick (CallDeleteTask t.id) ] [ text "Delete this task : PENDING" ]
+                                    button [ onClick (CallAbortTask t.id) ] [ text "Delete this task : PENDING" ]
 
                                   else
                                     text ""
                                 ]
                             ]
                         , tr [] [ td [] [ text "Id" ], td [] [ text (fromInt t.id) ] ]
-                        , tr [] [ td [] [ text "master_mode" ], td [] [ text t.master_mode ] ]
+                        , tr [] [ td [] [ text "master_mode" ], td [style "color" "blue" ] [ text t.master_mode ] ]
                         , tr [] [ td [] [ text "status" ], td [] [ text t.status ] ]
                         , tr [] [ td [] [ text "user_validator" ], td [] [ text t.user_validator ] ]
                         , tr [] [ td [] [ text "processed_by" ], td [] [ text t.processed_by ] ]
@@ -688,6 +717,12 @@ displayCallMasterMode op lastTask display =
 
             else
                 "enabled"
+        
+        buttonLabel = ("Switch " ++ masterModeStr ++ " to " ++ antiMasterModeStr ++ 
+            if antiMasterModeStr=="NAS" then
+                " + (indexation) "
+            else
+                "")
     in
     div
         [ style "display" displayMode
@@ -706,7 +741,7 @@ displayCallMasterMode op lastTask display =
               else
                 onClick CallSwitchDAMtoNAS
             ]
-            [ text ("Switch " ++ masterModeStr ++ " to " ++ antiMasterModeStr) ]
+            [ text buttonLabel ]
         ]
 
 
@@ -738,15 +773,15 @@ displayCallTasks op display =
                 "block"
     in
     div
-        [ style "display" displayMode
-        ]
-        [ button [ onClick CallGetTasks ] [ text ("Tasks : " ++ (fromBoolToString display)) ]
-        ]
+        [ style "display" displayMode ]
+        [ button [ onClick CallGetTasks ] [ text ("Tasks : " ++ (fromBoolToString display)) ] ]
 
 
 
 ---------- VIEW
 
+track : String -> Attribute msg
+track label = attribute "data-vpa-id" label
 
 view : Model -> Html Msg
 view model =
@@ -762,19 +797,19 @@ view model =
     in
     div [ style "margin" "20px" ]
         [ div []
-            [ input [ onInput SetOperationInput, value model.operationInput, placeholder "Opération" ] []
-            , button [ onClick CallGetOperation ] [ text "OK" ]
+            [ text ("Environnement : " ++ fromEnvToString env)
             , br[][]
-            , text ("Environnement : " ++ fromEnvToString env)
+            , input [ onInput SetOperationInput, value model.operationInput, placeholder "OperationCode" ] []
+            , button [ onClick CallGetOperation , track model.operationInput ] [ text "OK" ]
+            , br[][]
             ]
         , displayOperation model.op
         , hr[][]
-        , div [style "display" "flex"][
-            div[style "flex" "1"][displayCallTasks model.op model.displayTasks]
-            , div[style "flex" "1"][ displayCallGetWorkflows model.op model.displayWorkflows]
-        ]
+        , div [style "display" "flex"]
+            [ div[style "flex" "1"][ displayCallTasks model.op model.displayTasks ]
+            , div[style "flex" "1"][ displayCallGetWorkflows model.op model.displayWorkflows ]
+            ]
         , displayCallMasterMode model.op (getLastTask modelTasks) model.displayTasks
-
         , displayWorkflows modelWorkflows model.displayWorkflows
         , displayTasks modelTasks model.displayTasks
         , displayFooter

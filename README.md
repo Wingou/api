@@ -75,3 +75,13 @@ https://jsonplaceholder.typicode.com/
 > Add filter : app is Pamela
 
 > Add filter : eventName is click
+
+# Run with docker
+## Build image
+```
+docker build . -t api-image
+```
+## Run container
+```
+docker run -it -p 8080:8080 api-image
+```

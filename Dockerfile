@@ -1,9 +1,7 @@
 FROM node:latest
-
-RUN npm install -g elm http-server
-
-RUN elm make src/Main.elm --output=build/pamela.js
-
-WORKDIR build
-
-CMD [ "http-server" ]
+WORKDIR /usr/app
+COPY . /usr/app
+RUN npm install elm http-server
+RUN ./node_modules/.bin/elm make src/Main.elm --output=build/pamela.js
+WORKDIR /usr/app/build
+CMD [ "../node_modules/.bin/http-server", "-p", "3000" ]

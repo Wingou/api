@@ -5329,8 +5329,8 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$application = _Browser_application;
-var $author$project$Main$PREPROD = {$: 'PREPROD'};
-var $author$project$Main$env = $author$project$Main$PREPROD;
+var $author$project$Main$PROD = {$: 'PROD'};
+var $author$project$Main$env = $author$project$Main$PROD;
 var $author$project$Main$config = function () {
 	var _v0 = $author$project$Main$env;
 	switch (_v0.$) {
@@ -6415,6 +6415,22 @@ var $author$project$Main$requestPostDAMtoNAS = function (op) {
 			url: $author$project$Main$config.server + ('/operations/' + (operation + ('/index/VALID?masterMode=' + antiMasterMode)))
 		});
 };
+var $author$project$Main$GotIndexation = function (a) {
+	return {$: 'GotIndexation', a: a};
+};
+var $author$project$Main$requestPostIndexation = F2(
+	function (operationCode, masterMode) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: $elm$http$Http$expectWhatever($author$project$Main$GotIndexation),
+				headers: $author$project$Main$apiHeader,
+				method: 'POST',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config.server + ('/operations/' + (operationCode + ('/index/VALID?masterMode=' + masterMode)))
+			});
+	});
 var $elm$url$Url$addPort = F2(
 	function (maybePort, starter) {
 		if (maybePort.$ === 'Nothing') {
@@ -6535,6 +6551,11 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					model,
 					$author$project$Main$requestAbortTask(taskId));
+			case 'CallIndexation':
+				var op = msg.a;
+				return _Utils_Tuple2(
+					model,
+					A2($author$project$Main$requestPostIndexation, op.operationCode, op.masterMode));
 			case 'GotTasks':
 				var r = msg.a;
 				var getTasks = function () {
@@ -6636,15 +6657,24 @@ var $author$project$Main$update = F2(
 						model,
 						$elm$browser$Browser$Navigation$load(href));
 				}
-			default:
+			case 'UrlChanged':
 				var url = msg.a;
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{url: url}),
 					$elm$core$Platform$Cmd$none);
+			default:
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{messageUser: 'Indexation de la vente ' + (operationCode + ' en cours.')}),
+					$author$project$Main$requestGetTasks(opInput));
 		}
 	});
+var $author$project$Main$CallIndexation = function (a) {
+	return {$: 'CallIndexation', a: a};
+};
 var $author$project$Main$CallSwitchDAMtoNAS = {$: 'CallSwitchDAMtoNAS'};
 var $author$project$Main$CallSwitchNAStoDAM = {$: 'CallSwitchNAStoDAM'};
 var $elm$virtual_dom$VirtualDom$attribute = F2(
@@ -6689,7 +6719,7 @@ var $author$project$Main$displayCallMasterMode = F3(
 		var enableMasterModeSwitch = (statusOfLastTask === 'Pending') ? 'disabled' : 'enabled';
 		var displayMode = (op.masterMode === 'NONE') ? 'none' : (display ? 'block' : 'none');
 		var antiMasterModeStr = $author$project$Main$toAntiMasterMode(op.masterMode);
-		var buttonLabel = 'Switch ' + (masterModeStr + (' to ' + (antiMasterModeStr + ((antiMasterModeStr === 'NAS') ? ' + (indexation) ' : ''))));
+		var buttonLabel = 'Switch ' + (masterModeStr + (' to ' + (antiMasterModeStr + ((antiMasterModeStr === 'NAS') ? ' + Indexation NAS' : ''))));
 		return A2(
 			$elm$html$Html$div,
 			_List_fromArray(
@@ -6704,21 +6734,51 @@ var $author$project$Main$displayCallMasterMode = F3(
 					_List_fromArray(
 						[
 							A2($elm$html$Html$Attributes$attribute, enableMasterModeSwitch, ''),
-							$author$project$Main$track('Switch MasterMode to ' + antiMasterModeStr),
+							$author$project$Main$track('Switch MasterMode to ' + (antiMasterModeStr + (' on ' + op.operationCode))),
 							(enableMasterModeSwitch === 'disabled') ? A2($elm$html$Html$Attributes$attribute, 'title', 'The Master Mode can not be changed because the STATUS of the last task is Pending...') : A2($elm$html$Html$Attributes$attribute, 'title', 'Switch the current Master Mode ' + (masterModeStr + (' to ' + antiMasterModeStr))),
 							(antiMasterModeStr === 'DAM') ? $elm$html$Html$Events$onClick($author$project$Main$CallSwitchNAStoDAM) : $elm$html$Html$Events$onClick($author$project$Main$CallSwitchDAMtoNAS)
 						]),
 					_List_fromArray(
 						[
 							$elm$html$Html$text(buttonLabel)
+						])),
+					$elm$html$Html$text(' '),
+					A2(
+					$elm$html$Html$button,
+					_List_fromArray(
+						[
+							$elm$html$Html$Events$onClick(
+							$author$project$Main$CallIndexation(op)),
+							A2($elm$html$Html$Attributes$attribute, enableMasterModeSwitch, ''),
+							(enableMasterModeSwitch === 'disabled') ? A2($elm$html$Html$Attributes$attribute, 'title', 'The indexation is not available because a task has already been pending...') : A2($elm$html$Html$Attributes$attribute, 'title', 'Launch an indexation in mode ' + masterModeStr)
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('Indexation ' + masterModeStr)
 						]))
 				]));
 	});
-var $author$project$Main$CallGetOperation = {$: 'CallGetOperation'};
-var $author$project$Main$SetOperationInput = function (a) {
-	return {$: 'SetOperationInput', a: a};
+var $author$project$Main$displayFooter = function (v) {
+	return A2(
+		$elm$html$Html$div,
+		_List_Nil,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$hr, _List_Nil, _List_Nil),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$attribute, 'align', 'center'),
+						A2($elm$html$Html$Attributes$style, 'font-family', 'arial'),
+						A2($elm$html$Html$Attributes$style, 'font-size', '12px')
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text('Pamela ' + (v + ' - Helpdesk Application by MediaProd - January 2020'))
+					]))
+			]));
 };
-var $elm$html$Html$br = _VirtualDom_node('br');
 var $author$project$Main$fromEnvToString = function (environnement) {
 	switch (environnement.$) {
 		case 'PROD':
@@ -6728,6 +6788,86 @@ var $author$project$Main$fromEnvToString = function (environnement) {
 		default:
 			return 'CI';
 	}
+};
+var $author$project$Main$displayEnv = A2(
+	$elm$html$Html$div,
+	_List_Nil,
+	_List_fromArray(
+		[
+			$elm$html$Html$text(
+			'Environment : ' + $author$project$Main$fromEnvToString($author$project$Main$env))
+		]));
+var $elm$html$Html$a = _VirtualDom_node('a');
+var $elm$html$Html$Attributes$stringProperty = F2(
+	function (key, string) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$string(string));
+	});
+var $elm$html$Html$Attributes$href = function (url) {
+	return A2(
+		$elm$html$Html$Attributes$stringProperty,
+		'href',
+		_VirtualDom_noJavaScriptUri(url));
+};
+var $author$project$Main$kibanaUrl = 'https://kibana-test.noc.vpgrp.io/s/sourcing/app/kibana#/visualize/edit/fa0d9e70-4db4-11ea-a724-d5d66a9f9181?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now%2Fd,to:now%2Fd))&_a=(filters:!((\'$state\':(store:appState),meta:(alias:!n,disabled:!f,index:\'7a38f240-001f-11ea-a263-6101354a1020\',key:app,negate:!f,params:(query:Pamela),type:phrase,value:Pamela),query:(match:(app:(query:Pamela,type:phrase)))),(\'$state\':(store:appState),meta:(alias:!n,disabled:!f,index:\'7a38f240-001f-11ea-a263-6101354a1020\',key:eventName,negate:!f,params:(query:click),type:phrase,value:click),query:(match:(eventName:(query:click,type:phrase))))),linked:!f,query:(language:kuery,query:\'\'),uiState:(vis:(params:(sort:(columnIndex:1,direction:desc)))),vis:(aggs:!((enabled:!t,id:\'1\',params:(),schema:metric,type:count),(enabled:!t,id:\'2\',params:(field:attributes.value.keyword,missingBucket:!f,missingBucketLabel:Missing,order:desc,orderBy:\'1\',otherBucket:!f,otherBucketLabel:Other,size:20),schema:bucket,type:terms),(enabled:!t,id:\'3\',params:(drop_partials:!f,extended_bounds:(),field:reportTime,interval:auto,min_doc_count:1,timeRange:(from:now%2Fw,to:now%2Fw),useNormalizedEsInterval:!t),schema:bucket,type:date_histogram)),params:(dimensions:(buckets:!((accessor:0,aggType:terms,format:(id:terms,params:(id:string,missingBucketLabel:Missing,otherBucketLabel:Other)),params:()),(accessor:1,aggType:date_histogram,format:(id:date,params:(pattern:\'YYYY-MM-DD%20HH:mm\')),params:())),metrics:!((accessor:2,aggType:count,format:(id:number),params:()))),perPage:10,percentageCol:Count,showMetricsAtAllLevels:!f,showPartialRows:!f,showTotal:!t,sort:(columnIndex:!n,direction:!n),totalFunc:sum),title:Pamela,type:table))';
+var $elm$html$Html$Attributes$target = $elm$html$Html$Attributes$stringProperty('target');
+var $author$project$Main$displayStats = A2(
+	$elm$html$Html$div,
+	_List_Nil,
+	_List_fromArray(
+		[
+			A2(
+			$elm$html$Html$a,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$target('_blank'),
+					$elm$html$Html$Attributes$href($author$project$Main$kibanaUrl)
+				]),
+			_List_fromArray(
+				[
+					$elm$html$Html$text('Statistics on Kibana')
+				]))
+		]));
+var $author$project$Main$displayHeader = A2(
+	$elm$html$Html$div,
+	_List_fromArray(
+		[
+			A2($elm$html$Html$Attributes$style, 'display', 'flex'),
+			A2($elm$html$Html$Attributes$style, 'flex-direction', 'row')
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					A2($elm$html$Html$Attributes$style, 'flex', '1'),
+					A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
+				]),
+			_List_fromArray(
+				[$author$project$Main$displayEnv])),
+			A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					A2($elm$html$Html$Attributes$style, 'flex', '50')
+				]),
+			_List_Nil),
+			A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					A2($elm$html$Html$Attributes$style, 'flex', '1'),
+					A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
+				]),
+			_List_fromArray(
+				[$author$project$Main$displayStats]))
+		]));
+var $author$project$Main$CallGetOperation = {$: 'CallGetOperation'};
+var $author$project$Main$SetOperationInput = function (a) {
+	return {$: 'SetOperationInput', a: a};
 };
 var $elm$html$Html$input = _VirtualDom_node('input');
 var $elm$html$Html$Events$alwaysStop = function (x) {
@@ -6757,24 +6897,15 @@ var $elm$html$Html$Events$onInput = function (tagger) {
 			$elm$html$Html$Events$alwaysStop,
 			A2($elm$json$Json$Decode$map, tagger, $elm$html$Html$Events$targetValue)));
 };
-var $elm$html$Html$Attributes$stringProperty = F2(
-	function (key, string) {
-		return A2(
-			_VirtualDom_property,
-			key,
-			$elm$json$Json$Encode$string(string));
-	});
 var $elm$html$Html$Attributes$placeholder = $elm$html$Html$Attributes$stringProperty('placeholder');
 var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
-var $author$project$Main$displayEnv = function (opInput) {
+var $author$project$Main$displayInputOperation = function (opInput) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
 		_List_fromArray(
 			[
-				$elm$html$Html$text(
-				'Environnement : ' + $author$project$Main$fromEnvToString($author$project$Main$env)),
-				A2($elm$html$Html$br, _List_Nil, _List_Nil),
+				A2($elm$html$Html$hr, _List_Nil, _List_Nil),
 				A2(
 				$elm$html$Html$input,
 				_List_fromArray(
@@ -6788,35 +6919,14 @@ var $author$project$Main$displayEnv = function (opInput) {
 				$elm$html$Html$button,
 				_List_fromArray(
 					[
-						$elm$html$Html$Events$onClick($author$project$Main$CallGetOperation),
-						$author$project$Main$track(opInput)
+						$elm$html$Html$Events$onClick($author$project$Main$CallGetOperation)
 					]),
 				_List_fromArray(
 					[
 						$elm$html$Html$text('OK')
-					])),
-				A2($elm$html$Html$br, _List_Nil, _List_Nil)
+					]))
 			]));
 };
-var $author$project$Main$displayFooter = A2(
-	$elm$html$Html$div,
-	_List_Nil,
-	_List_fromArray(
-		[
-			A2($elm$html$Html$hr, _List_Nil, _List_Nil),
-			A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$attribute, 'align', 'center'),
-					A2($elm$html$Html$Attributes$style, 'font-family', 'arial'),
-					A2($elm$html$Html$Attributes$style, 'font-size', '12px')
-				]),
-			_List_fromArray(
-				[
-					$elm$html$Html$text('Pamela v0.1 - Application Support - Media Production - Janvier 2020')
-				]))
-		]));
 var $author$project$Main$CallGetWorkflows = {$: 'CallGetWorkflows'};
 var $author$project$Main$fromBoolToString = function (b) {
 	return b ? '[-]' : '[+]';
@@ -7022,8 +7132,8 @@ var $author$project$Main$displayOperation = function (o) {
 var $author$project$Main$CallAbortTask = function (a) {
 	return {$: 'CallAbortTask', a: a};
 };
-var $author$project$Main$displayTasks = F2(
-	function (tasks, display) {
+var $author$project$Main$displayTasks = F3(
+	function (tasks, display, operationCode) {
 		var messageNoTask = (!$elm$core$List$length(tasks)) ? 'No task found' : '';
 		var displayMode = display ? 'block' : 'none';
 		return A2(
@@ -7051,6 +7161,7 @@ var $author$project$Main$displayTasks = F2(
 					A2(
 						$elm$core$List$map,
 						function (t) {
+							var pendingColor = (t.status === 'Pending') ? 'orange' : 'black';
 							return A2(
 								$elm$html$Html$table,
 								_List_fromArray(
@@ -7089,11 +7200,11 @@ var $author$project$Main$displayTasks = F2(
 															[
 																$elm$html$Html$Events$onClick(
 																$author$project$Main$CallAbortTask(t.id)),
-																$author$project$Main$track('Delete Pending task')
+																$author$project$Main$track('Delete Pending task on ' + operationCode)
 															]),
 														_List_fromArray(
 															[
-																$elm$html$Html$text('Delete this task : PENDING')
+																$elm$html$Html$text('Delete this pending task')
 															])) : $elm$html$Html$text('')
 													]))
 											])),
@@ -7155,7 +7266,10 @@ var $author$project$Main$displayTasks = F2(
 													])),
 												A2(
 												$elm$html$Html$td,
-												_List_Nil,
+												_List_fromArray(
+													[
+														A2($elm$html$Html$Attributes$style, 'color', pendingColor)
+													]),
 												_List_fromArray(
 													[
 														$elm$html$Html$text(t.status)
@@ -7300,8 +7414,8 @@ var $author$project$Main$getLastWorkflow = function (w) {
 };
 var $elm$core$Basics$neq = _Utils_notEqual;
 var $elm$core$List$sortBy = _List_sortBy;
-var $author$project$Main$displayWorkflows = F2(
-	function (workflows, display) {
+var $author$project$Main$displayWorkflows = F3(
+	function (workflows, display, operationCode) {
 		var workflowsSortedByStarted = $elm$core$List$reverse(
 			A2(
 				$elm$core$List$sortBy,
@@ -7375,7 +7489,7 @@ var $author$project$Main$displayWorkflows = F2(
 															[
 																$elm$html$Html$Events$onClick(
 																$author$project$Main$CallAbortWorkflow(w.id)),
-																$author$project$Main$track('Abort publication')
+																$author$project$Main$track('Abort publication on ' + operationCode)
 															]),
 														_List_fromArray(
 															[
@@ -7505,9 +7619,11 @@ var $author$project$Main$getLastTask = function (t) {
 		return $author$project$Main$emptyTask;
 	}
 };
+var $author$project$Main$version = 'v0.1.1';
 var $author$project$Main$view = function (model) {
 	var modelWorkflows = model.workflows;
 	var modelTasks = model.tasks;
+	var modelOp = model.op;
 	return {
 		body: _List_fromArray(
 			[
@@ -7519,21 +7635,22 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$author$project$Main$displayEnv(model.operationInput),
-						$author$project$Main$displayOperation(model.op),
-						A3($author$project$Main$displayMenu, model.op, model.displayTasks, model.displayWorkflows),
+						$author$project$Main$displayHeader,
+						$author$project$Main$displayInputOperation(model.operationInput),
+						$author$project$Main$displayOperation(modelOp),
+						A3($author$project$Main$displayMenu, modelOp, model.displayTasks, model.displayWorkflows),
 						A3(
 						$author$project$Main$displayCallMasterMode,
-						model.op,
+						modelOp,
 						$author$project$Main$getLastTask(modelTasks),
 						model.displayTasks),
 						$author$project$Main$displayMessageUser(model.messageUser),
-						A2($author$project$Main$displayWorkflows, modelWorkflows, model.displayWorkflows),
-						A2($author$project$Main$displayTasks, modelTasks, model.displayTasks),
-						$author$project$Main$displayFooter
+						A3($author$project$Main$displayWorkflows, modelWorkflows, model.displayWorkflows, modelOp.operationCode),
+						A3($author$project$Main$displayTasks, modelTasks, model.displayTasks, modelOp.operationCode),
+						$author$project$Main$displayFooter($author$project$Main$version)
 					]))
 			]),
-		title: 'URL INTER'
+		title: 'Pamela ' + $author$project$Main$version
 	};
 };
 var $author$project$Main$main = $elm$browser$Browser$application(

@@ -1,15 +1,16 @@
-module Main exposing (..)
+module Main exposing (Config, Env(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayCallGetWorkflows, displayCallMasterMode, displayCallTasks, displayFooter, displayOperation, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, env, fromBoolToString, fromEnvToString, getLastTask, getLastWorkflow, init, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchNAStoDAM, requestPostDAMtoNAS, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, view, workflowDecoder, workflowsDecoder)
 
 import Browser
-import Html exposing (Html, Attribute, a, button, div, hr, img, input, table, td, text, tr, br)
-import Html.Attributes exposing ( attribute, placeholder, src, style, value)
+import Browser.Navigation as Nav
+import Html exposing (Attribute, Html, a, br, button, div, hr, input, table, td, text, tr)
+import Html.Attributes exposing (attribute, href, placeholder, style, target, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Header, emptyBody, expectJson, expectWhatever, get, header, jsonBody, request)
-import Json.Decode exposing (Decoder, at, bool, field, int, list, map, map3, map5, map8, maybe, nullable, string)
+import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request)
+import Json.Decode exposing (Decoder, at, bool, field, int, list, map, map3, map5, map8, string)
 import Json.Encode as Encode
 import List exposing (head, reverse, sortBy)
 import String exposing (fromInt)
-
+import Url exposing (Url, toString)
 
 
 
@@ -23,8 +24,18 @@ type Env
 
 
 env : Env
-env = PROD
-      
+env =
+    PROD
+
+
+version : String
+version =
+    "v0.1.1"
+
+
+kibanaUrl : String
+kibanaUrl =
+    "https://kibana-test.noc.vpgrp.io/s/sourcing/app/kibana#/visualize/edit/fa0d9e70-4db4-11ea-a724-d5d66a9f9181?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now%2Fd,to:now%2Fd))&_a=(filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'7a38f240-001f-11ea-a263-6101354a1020',key:app,negate:!f,params:(query:Pamela),type:phrase,value:Pamela),query:(match:(app:(query:Pamela,type:phrase)))),('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'7a38f240-001f-11ea-a263-6101354a1020',key:eventName,negate:!f,params:(query:click),type:phrase,value:click),query:(match:(eventName:(query:click,type:phrase))))),linked:!f,query:(language:kuery,query:''),uiState:(vis:(params:(sort:(columnIndex:1,direction:desc)))),vis:(aggs:!((enabled:!t,id:'1',params:(),schema:metric,type:count),(enabled:!t,id:'2',params:(field:attributes.value.keyword,missingBucket:!f,missingBucketLabel:Missing,order:desc,orderBy:'1',otherBucket:!f,otherBucketLabel:Other,size:20),schema:bucket,type:terms),(enabled:!t,id:'3',params:(drop_partials:!f,extended_bounds:(),field:reportTime,interval:auto,min_doc_count:1,timeRange:(from:now%2Fw,to:now%2Fw),useNormalizedEsInterval:!t),schema:bucket,type:date_histogram)),params:(dimensions:(buckets:!((accessor:0,aggType:terms,format:(id:terms,params:(id:string,missingBucketLabel:Missing,otherBucketLabel:Other)),params:()),(accessor:1,aggType:date_histogram,format:(id:date,params:(pattern:'YYYY-MM-DD%20HH:mm')),params:())),metrics:!((accessor:2,aggType:count,format:(id:number),params:()))),perPage:10,percentageCol:Count,showMetricsAtAllLevels:!f,showPartialRows:!f,showTotal:!t,sort:(columnIndex:!n,direction:!n),totalFunc:sum),title:Pamela,type:table))"
 
 
 type alias Config =
@@ -43,13 +54,14 @@ config =
 
         PREPROD ->
             { server = "http://mediaapi-pp.vpback.vpgrp.io/api/v1"
-            , defaultOperation = "" -- NSCASHMERE38
+            , defaultOperation = "" -- NSCASHMERE38 -- LADC5
             }
 
         CI ->
             { server = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
             , defaultOperation = ""
             }
+
 
 
 ---------- TYPES
@@ -63,6 +75,9 @@ type alias Model =
     , workflows : Workflows
     , displayWorkflows : Bool
     , displayTasks : Bool
+    , key : Nav.Key
+    , url : Url
+    , messageUser : String
     }
 
 
@@ -134,14 +149,18 @@ type Msg
     | GotSwithcNAStoDAM (Result Http.Error ())
     | CallAbortTask Int
     | GotAbortTask (Result Http.Error ())
+    | LinkClicked Browser.UrlRequest
+    | UrlChanged Url.Url
+    | GotIndexation (Result Http.Error ())
+    | CallIndexation Operation
 
 
 
 ---------- INITIALIZE
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init _ url key =
     ( { op = emptyOperation
       , operationInput = config.defaultOperation
       , tasks = [ emptyTask ]
@@ -149,6 +168,9 @@ init =
       , workflows = [ emptyWorkflow ]
       , displayTasks = False
       , displayWorkflows = False
+      , key = key
+      , url = url
+      , messageUser = ""
       }
     , Cmd.none
     )
@@ -228,6 +250,19 @@ requestGetOperation op =
         }
 
 
+requestPostIndexation : String -> String -> Cmd Msg
+requestPostIndexation operationCode masterMode =
+    Http.request
+        { method = "POST"
+        , headers = apiHeader
+        , url = config.server ++ "/operations/" ++ operationCode ++ "/index/VALID?masterMode=" ++ masterMode
+        , body = emptyBody
+        , expect = expectWhatever GotIndexation
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 requestPostDAMtoNAS : Operation -> Cmd Msg
 requestPostDAMtoNAS op =
     let
@@ -287,25 +322,29 @@ requestDeleteTask taskId =
         , tracker = Nothing
         }
 
+
 requestAbortTask : Int -> Cmd Msg
 requestAbortTask taskId =
     Http.request
-        { method = "PATCH"
+        { method = "DELETE"
         , headers = apiHeader
         , url = config.server ++ "/tasks/" ++ fromInt taskId
-        , body = 
-            jsonBody
-                (Encode.object
-                    [ ( "Op", Encode.string "UPDATE" )
-                    , ( "Path", Encode.string "status" )
-                    , ( "Value", Encode.string "Aborted" )
-                    ]
-                )
+        , body =
+            emptyBody
+
+        -- jsonBody
+        --     (Encode.object
+        --         [ ( "Op", Encode.string "UPDATE" )
+        --         , ( "Path", Encode.string "status" )
+        --         , ( "Value", Encode.string "Aborted" )
+        --         ]
+        --     )
         , expect = expectWhatever GotAbortTask
         , timeout = Nothing
         , tracker = Nothing
         }
-    
+
+
 requestGetWorkflows : Operation -> Cmd Msg
 requestGetWorkflows op =
     Http.request
@@ -368,26 +407,26 @@ getLastWorkflow w =
         Nothing ->
             emptyWorkflow
 
-fromBoolToString : Bool -> String
-fromBoolToString b = 
-    case b of
-        True -> 
-            "ON"
 
-        False -> 
-            "OFF"
+fromBoolToString : Bool -> String
+fromBoolToString b =
+    if b then
+        "[-]"
+
+    else
+        "[+]"
 
 
 fromEnvToString : Env -> String
-fromEnvToString environnement = 
+fromEnvToString environnement =
     case environnement of
-        PROD -> 
+        PROD ->
             "PROD"
 
-        PREPROD -> 
+        PREPROD ->
             "PREPROD"
 
-        CI -> 
+        CI ->
             "CI"
 
 
@@ -456,6 +495,9 @@ update msg model =
 
         modelOp =
             model.op
+
+        operationCode =
+            modelOp.operationCode
     in
     case msg of
         NoOp ->
@@ -465,36 +507,68 @@ update msg model =
             ( { model | operationInput = op }, Cmd.none )
 
         CallGetTasks ->
-            case model.displayTasks of  
-                False ->
-                    ( {model | displayTasks=True, displayWorkflows=False } , requestGetTasks opInput  )
-                True -> 
-                    ( {model | displayTasks=False  } , Cmd.none )
+            if model.displayTasks then
+                ( { model | displayTasks = False, messageUser = "" }, Cmd.none )
+
+            else
+                ( { model | displayTasks = True, displayWorkflows = False, messageUser = "" }, requestGetTasks opInput )
 
         CallGetOperation ->
-            ( { model | tasks = [ emptyTask ], workflows = [ emptyWorkflow ], displayWorkflows=False, displayTasks=False }, requestGetOperation opInput )
+            ( { model
+                | tasks = [ emptyTask ]
+                , workflows = [ emptyWorkflow ]
+                , displayWorkflows = False
+                , displayTasks = False
+                , messageUser = ""
+              }
+            , requestGetOperation opInput
+            )
 
         CallSwitchDAMtoNAS ->
-            ( {model | displayWorkflows=False, displayTasks=True }, requestPostDAMtoNAS modelOp )
+            ( { model
+                | displayWorkflows = False
+                , displayTasks = True
+              }
+            , requestPostDAMtoNAS modelOp
+            )
 
         CallSwitchNAStoDAM ->
-            ( {model | displayWorkflows=False, displayTasks=True }, requestPatchNAStoDAM modelOp )
+            ( { model
+                | displayWorkflows = False
+                , displayTasks = True
+              }
+            , requestPatchNAStoDAM modelOp
+            )
 
         CallDeleteTask taskId ->
             ( model, requestDeleteTask taskId )
 
         CallGetWorkflows ->
-            case model.displayWorkflows of  
-                False ->
-                    ( {model | displayWorkflows=True, displayTasks=False } , requestGetWorkflows modelOp )
-                True -> 
-                    ( {model | displayWorkflows=False } , Cmd.none )
+            if model.displayWorkflows then
+                ( { model
+                    | displayWorkflows = False
+                    , messageUser = ""
+                  }
+                , Cmd.none
+                )
+
+            else
+                ( { model
+                    | displayWorkflows = True
+                    , displayTasks = False
+                    , messageUser = ""
+                  }
+                , requestGetWorkflows modelOp
+                )
 
         CallAbortWorkflow workflowId ->
             ( model, requestAbortWorkflow workflowId )
 
         CallAbortTask taskId ->
             ( model, requestAbortTask taskId )
+
+        CallIndexation op ->
+            ( model, requestPostIndexation op.operationCode op.masterMode )
 
         GotTasks r ->
             let
@@ -503,7 +577,7 @@ update msg model =
                         Ok listGetTasks ->
                             listGetTasks
 
-                        Err err ->
+                        Err _ ->
                             []
             in
             ( { model
@@ -519,7 +593,7 @@ update msg model =
                         Ok opeOk ->
                             opeOk
 
-                        Err err ->
+                        Err _ ->
                             emptyOperation
             in
             ( { model
@@ -535,7 +609,7 @@ update msg model =
                         Ok apiOK ->
                             apiOK
 
-                        Err err ->
+                        Err _ ->
                             emptyResponseApi
             in
             ( { model | responseApi = gotResponseApi }
@@ -549,38 +623,59 @@ update msg model =
                         Ok w ->
                             w
 
-                        Err err ->
+                        Err _ ->
                             [ emptyWorkflow ]
             in
             ( { model | workflows = gotWorkflows }, Cmd.none )
 
-        GotAbortWorkflow r ->
-            ( model, requestGetWorkflows modelOp )
+        GotAbortWorkflow _ ->
+            ( { model | messageUser = "Le bouton publication de la vente " ++ operationCode ++ " est débloqué." }, requestGetWorkflows modelOp )
 
-        GotSwithcNAStoDAM r ->
-            ( { model | displayTasks=True }, requestGetOperation opInput )
+        GotSwithcNAStoDAM _ ->
+            ( { model | displayTasks = True, messageUser = "La vente " ++ operationCode ++ " est passée en mode DAM." }, requestGetOperation opInput )
 
-        GotSwitchDAMtoNAS r ->
-            ( model, requestGetTasks opInput )
+        GotSwitchDAMtoNAS _ ->
+            ( { model | messageUser = "La vente " ++ operationCode ++ " est passée en mode NAS + indexation en cours." }, requestGetTasks opInput )
 
-        GotAbortTask r ->
-            ( model, requestGetTasks opInput )
+        GotAbortTask _ ->
+            ( { model | messageUser = "La task en PENDING est supprimée." }, requestGetTasks opInput )
+
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+        UrlChanged url ->
+            ( { model | url = url }
+            , Cmd.none
+            )
+
+        GotIndexation _ ->
+            ( { model | messageUser = "Indexation de la vente " ++ operationCode ++ " en cours." }, requestGetTasks opInput )
+
 
 
 ---------- DISPLAYS
 
-displayFooter : Html Msg
-displayFooter =
-    div[][
-        hr[][]
-        , div [attribute "align" "center",
-            style "font-family" "arial",
-            style "font-size" "12px"
-        ][text "Pamela v0.1 - Application Support - Media Production - Janvier 2020"]
-    ]
 
-displayWorkflows : Workflows -> Bool -> Html Msg
-displayWorkflows workflows display =
+displayFooter : String -> Html Msg
+displayFooter v =
+    div []
+        [ hr [] []
+        , div
+            [ attribute "align" "center"
+            , style "font-family" "arial"
+            , style "font-size" "12px"
+            ]
+            [ text ("Pamela " ++ v ++ " - Helpdesk Application by MediaProd - January 2020") ]
+        ]
+
+
+displayWorkflows : Workflows -> Bool -> String -> Html Msg
+displayWorkflows workflows display operationCode =
     let
         workflowsSortedByStarted =
             reverse (sortBy .started workflows)
@@ -589,26 +684,35 @@ displayWorkflows workflows display =
             getLastWorkflow workflowsSortedByStarted
 
         displayMode =
-            case display of
-                False -> 
-                    "none"
-                True ->
-                    if lastWorkflow.id=="-1" then
-                        "none"
-                    else
-                        "block"
+            if display then
+                "block"
+
+            else
+                "none"
+
+        messageNoWorkflow =
+            if lastWorkflow.id == "-1" then
+                "No workflow found"
+
+            else
+                ""
     in
     div [ style "display" displayMode ]
         [ hr [] []
+        , div [ style "color" "RED" ] [ text messageNoWorkflow ]
         , div []
             (List.map
                 (\w ->
                     table [ style "border" "solid", style "width" "100%" ]
                         [ tr []
                             [ td [ style "width" "30%" ] [ text "PUBLICATION WORKFLOWS" ]
-                            , td [ style "width" "70%"]
+                            , td [ style "width" "70%" ]
                                 [ if w.id == lastWorkflow.id && w.status /= "ABORTED" && w.status /= "ENDED" then
-                                    button [ onClick (CallAbortWorkflow w.id) ] [ text "Abort this Publication" ]
+                                    button
+                                        [ onClick (CallAbortWorkflow w.id)
+                                        , track ("Abort publication on " ++ operationCode)
+                                        ]
+                                        [ text "Abort this Publication" ]
 
                                   else
                                     text ""
@@ -616,48 +720,61 @@ displayWorkflows workflows display =
                             ]
                         , tr [] [ td [] [ text "Id" ], td [] [ text w.id ] ]
                         , tr [] [ td [] [ text "User" ], td [] [ text w.user ] ]
-                        , tr [] [ td [] [ text "Status" ], td [ style "color" "blue"  ] [ text (w.status ++ " ") ] ]
+                        , tr [] [ td [] [ text "Status" ], td [ style "color" "blue" ] [ text (w.status ++ " ") ] ]
                         , tr [] [ td [] [ text "Created" ], td [] [ text w.created ] ]
                         , tr [] [ td [] [ text "Started" ], td [] [ text w.started ] ]
                         ]
                 )
-                workflowsSortedByStarted
+                (List.filter (\wf -> wf.id /= "-1") workflowsSortedByStarted)
             )
         ]
 
 
-displayTasks : Tasks -> Bool -> Html Msg
-displayTasks tasks display =
+displayTasks : Tasks -> Bool -> String -> Html Msg
+displayTasks tasks display operationCode =
     let
-        lastTask =
-            getLastTask tasks
-
         displayMode =
-            case display of
-                False -> 
-                    "none"
-                True ->
-                    "block"
+            if display then
+                "block"
+
+            else
+                "none"
+
+        messageNoTask =
+            if List.length tasks == 0 then
+                "No task found"
+
+            else
+                ""
     in
     div [ style "display" displayMode ]
         [ hr [] []
+        , div [ style "color" "RED" ] [ text messageNoTask ]
         , div []
             (List.map
                 (\t ->
+                    let
+                        pendingColor =
+                            if t.status == "Pending" then
+                                "orange"
+
+                            else
+                                "black"
+                    in
                     table [ style "border" "solid", style "width" "100%" ]
                         [ tr []
                             [ td [ style "width" "30%" ] [ text "TASKS" ]
                             , td [ style "width" "70%" ]
                                 [ if t.status == "Pending" then
-                                    button [ onClick (CallAbortTask t.id) ] [ text "Delete this task : PENDING" ]
+                                    button [ onClick (CallAbortTask t.id), track ("Delete Pending task on " ++ operationCode) ] [ text "Delete this pending task" ]
 
                                   else
                                     text ""
                                 ]
                             ]
                         , tr [] [ td [] [ text "Id" ], td [] [ text (fromInt t.id) ] ]
-                        , tr [] [ td [] [ text "master_mode" ], td [style "color" "blue" ] [ text t.master_mode ] ]
-                        , tr [] [ td [] [ text "status" ], td [] [ text t.status ] ]
+                        , tr [] [ td [] [ text "master_mode" ], td [ style "color" "blue" ] [ text t.master_mode ] ]
+                        , tr [] [ td [] [ text "status" ], td [ style "color" pendingColor ] [ text t.status ] ]
                         , tr [] [ td [] [ text "user_validator" ], td [] [ text t.user_validator ] ]
                         , tr [] [ td [] [ text "processed_by" ], td [] [ text t.processed_by ] ]
                         , tr [] [ td [] [ text "reprise_type" ], td [] [ text t.reprise_type ] ]
@@ -681,7 +798,8 @@ displayOperation o =
                 "block"
     in
     div [ style "display" displayMode ]
-        [ table [ style "border" "solid", style "width" "500px" ]
+        [ hr [] []
+        , table [ style "border" "solid", style "width" "500px" ]
             [ tr [] [ td [] [ text "OperationId" ], td [ style "width" "250px" ] [ text (fromInt o.operationId) ] ]
             , tr [] [ td [] [ text "OperationCode" ], td [] [ text o.operationCode ] ]
             , tr [] [ td [] [ text "Master Mode" ], td [] [ text o.masterMode ] ]
@@ -696,11 +814,11 @@ displayCallMasterMode op lastTask display =
             if op.masterMode == "NONE" then
                 "none"
 
+            else if display == True then
+                "block"
+
             else
-                if display==True then
-                    "block"
-                else
-                    "none"
+                "none"
 
         masterModeStr =
             op.masterMode
@@ -717,19 +835,25 @@ displayCallMasterMode op lastTask display =
 
             else
                 "enabled"
-        
-        buttonLabel = ("Switch " ++ masterModeStr ++ " to " ++ antiMasterModeStr ++ 
-            if antiMasterModeStr=="NAS" then
-                " + (indexation) "
-            else
-                "")
+
+        buttonLabel =
+            "Switch "
+                ++ masterModeStr
+                ++ " to "
+                ++ antiMasterModeStr
+                ++ (if antiMasterModeStr == "NAS" then
+                        " + Indexation NAS"
+
+                    else
+                        ""
+                   )
     in
     div
-        [ style "display" displayMode
-        ]
+        [ style "display" displayMode ]
         [ hr [] []
         , button
             [ attribute enableMasterModeSwitch ""
+            , track ("Switch MasterMode to " ++ antiMasterModeStr ++ " on " ++ op.operationCode)
             , if enableMasterModeSwitch == "disabled" then
                 attribute "title" "The Master Mode can not be changed because the STATUS of the last task is Pending..."
 
@@ -742,10 +866,21 @@ displayCallMasterMode op lastTask display =
                 onClick CallSwitchDAMtoNAS
             ]
             [ text buttonLabel ]
+        , text " "
+        , button
+            [ onClick (CallIndexation op)
+            , attribute enableMasterModeSwitch ""
+            , if enableMasterModeSwitch == "disabled" then
+                attribute "title" "The indexation is not available because a task has already been pending..."
+
+              else
+                attribute "title" ("Launch an indexation in mode " ++ masterModeStr)
+            ]
+            [ text ("Indexation " ++ masterModeStr) ]
         ]
 
 
-displayCallGetWorkflows : Operation -> Bool ->Html Msg
+displayCallGetWorkflows : Operation -> Bool -> Html Msg
 displayCallGetWorkflows op display =
     let
         displayMode =
@@ -758,7 +893,7 @@ displayCallGetWorkflows op display =
     div
         [ style "display" displayMode
         ]
-        [ button [ onClick CallGetWorkflows ] [ text ("Publication Workflows : "++fromBoolToString display) ]
+        [ button [ onClick CallGetWorkflows ] [ text ("Publication Workflows " ++ fromBoolToString display) ]
         ]
 
 
@@ -774,46 +909,120 @@ displayCallTasks op display =
     in
     div
         [ style "display" displayMode ]
-        [ button [ onClick CallGetTasks ] [ text ("Tasks : " ++ (fromBoolToString display)) ] ]
+        [ button [ onClick CallGetTasks ] [ text ("Tasks " ++ fromBoolToString display) ] ]
+
+
+displayMessageUser : String -> Html Msg
+displayMessageUser message =
+    div []
+        [ if message == "" then
+            text message
+
+          else
+            div []
+                [ hr [] []
+                , text message
+                ]
+        ]
+
+
+displayMenu : Operation -> Bool -> Bool -> Html Msg
+displayMenu op isDispTask isDispWorkflow =
+    let
+        displayMode =
+            if op.operationId == -1 then
+                "none"
+
+            else
+                "block"
+    in
+    div [ style "display" displayMode ]
+        [ hr [] []
+        , div [ style "display" "flex" ]
+            [ div [ style "flex" "1" ] [ displayCallTasks op isDispTask ]
+            , div [ style "flex" "1" ] [ displayCallGetWorkflows op isDispWorkflow ]
+            ]
+        ]
+
+
+displayHeader : Html Msg
+displayHeader =
+    div [ style "display" "flex", style "flex-direction" "row" ]
+        [ div [ style "flex" "1", style "white-space" "nowrap" ] [ displayEnv ]
+        , div [ style "flex" "50" ] []
+        , div [ style "flex" "1", style "white-space" "nowrap" ] [ displayStats ]
+        ]
+
+
+displayEnv : Html Msg
+displayEnv =
+    div []
+        [ text ("Environment : " ++ fromEnvToString env) ]
+
+
+displayStats : Html Msg
+displayStats =
+    div []
+        [ a [ target "_blank", href kibanaUrl ]
+            [ text "Statistics on Kibana" ]
+        ]
+
+
+displayInputOperation : String -> Html Msg
+displayInputOperation opInput =
+    div []
+        [ hr [] []
+        , input
+            [ onInput SetOperationInput
+            , value opInput
+            , placeholder "OperationCode"
+            ]
+            []
+        , button [ onClick CallGetOperation ]
+            [ text "OK" ]
+        ]
+
+
+
+---------- TRACKING
+
+
+track : String -> Attribute msg
+track label =
+    attribute "data-vpa-id" label
 
 
 
 ---------- VIEW
 
-track : String -> Attribute msg
-track label = attribute "data-vpa-id" label
 
-view : Model -> Html Msg
+view : Model -> Browser.Document Msg
 view model =
     let
-        modelOp =
-            model.op
-
         modelTasks =
             model.tasks
 
         modelWorkflows =
             model.workflows
+
+        modelOp =
+            model.op
     in
-    div [ style "margin" "20px" ]
-        [ div []
-            [ text ("Environnement : " ++ fromEnvToString env)
-            , br[][]
-            , input [ onInput SetOperationInput, value model.operationInput, placeholder "OperationCode" ] []
-            , button [ onClick CallGetOperation , track model.operationInput ] [ text "OK" ]
-            , br[][]
+    { title = "Pamela " ++ version
+    , body =
+        [ div [ style "margin" "20px" ]
+            [ displayHeader
+            , displayInputOperation model.operationInput
+            , displayOperation modelOp
+            , displayMenu modelOp model.displayTasks model.displayWorkflows
+            , displayCallMasterMode modelOp (getLastTask modelTasks) model.displayTasks
+            , displayMessageUser model.messageUser
+            , displayWorkflows modelWorkflows model.displayWorkflows modelOp.operationCode
+            , displayTasks modelTasks model.displayTasks modelOp.operationCode
+            , displayFooter version
             ]
-        , displayOperation model.op
-        , hr[][]
-        , div [style "display" "flex"]
-            [ div[style "flex" "1"][ displayCallTasks model.op model.displayTasks ]
-            , div[style "flex" "1"][ displayCallGetWorkflows model.op model.displayWorkflows ]
-            ]
-        , displayCallMasterMode model.op (getLastTask modelTasks) model.displayTasks
-        , displayWorkflows modelWorkflows model.displayWorkflows
-        , displayTasks modelTasks model.displayTasks
-        , displayFooter
         ]
+    }
 
 
 
@@ -822,9 +1031,11 @@ view model =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.application
         { view = view
-        , init = \_ -> init
+        , init = init
         , update = update
         , subscriptions = always Sub.none
+        , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
         }

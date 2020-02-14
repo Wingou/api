@@ -43,87 +43,6 @@ Starter Kit for create a new project
 
 > git push
 
-## Pour builder le projet afin de le déployer
-## > elm make src/Main.elm
-> elm make src/Main.elm --output=src/pamela.js 
-
-# FireBase : mettre en ligne le projet
-
-## Installer FireBase
-
-### Pour installer les outils dans le projet
-
-> \$> npm install -g firebase-tools
-
-### Pour mettre à jour FireBase (Optionel)
-
-> \$> npm i -g firebase-tools
-
-### Pour se logguer
-
-> \$> firebase login
-
-- login : wingou.vp@gmail.com
-- password : b^m^f0!
-
-S'il y a le message d'erreur : `Impossible de charger le fichier...`
-
-- Voir la rubrique : `Restriction sous powershell`
-
-### Pour initialiser Firebase dans le projet (Une seule fois)
-
-> \$> firebase init
-
-> Are you ready to proceed? (Y/n)
-
-- `Y`
-  > Which Firebase CLI features do you want to set up for this folder?
-- `Hosting`
-
-> Use an existing projet
-
-- `Create a new projet`
-
-> Please specigy a unique project id
-
-- `Donner un ID unique de longueur minimum 6 caractères au projet (ex: myApp000)`
-
-> What would you like to call your project ?
-
-- `Donner un nom unique sous lequel le projet va être déployé (ex: myApp)`
-
-> What do you want to use as your public directory? (public)
-
-- `build` (Ne pas prendre le dossier /public)
-
-> Configure as a single-page app (rewrite all urls to /index.html)? (y/N)
-
-- `N`
-
-> File build/index.html already exists. Overwrite?
-
-- `Y`
-
-## Déployer un projet
-
-Pour builder le projet
-
-> \$> elm make src/Main.elm --output build/index.html
-
-Pour déployer le projet
-
-> \$> firebase deploy
-
-# Restriction sous powershell (Optionel)
-
-Pour retirer la restriction sous powershell
-
-> \$> set-executionpolicy unrestricted
-
-Pour remettre la restriction sous powershell
-
-> \$> Set-ExecutionPolicy RemoteSigned
-
 # Hot Reloading (Une seule fois)
 
 Pour mettre en place le Hot Reloading
@@ -134,6 +53,25 @@ ou
 
 > \$> npm install --save-dev elm elm-live
 
-# API
+# API pour Test
 
 https://jsonplaceholder.typicode.com/
+
+
+# Pour builder le projet afin de le déployer
+## > elm make src/Main.elm
+> elm make src/Main.elm --output=build/pamela.js 
+
+# Kibana
+
+> https://kibana-test.noc.vpgrp.io/
+
+> Sourcing
+
+> icône : Discover
+
+> sourcing-o2kpi-*
+
+> Add filter : app is Pamela
+
+> Add filter : eventName is click

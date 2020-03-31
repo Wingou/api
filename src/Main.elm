@@ -1,8 +1,8 @@
-module Main exposing (Config, Environment(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayButtonMasterMode, displayButtonMenu, displayEnv, displayFooter, displayHeader, displayInputOperation, displayMessageUser, displayOperation, displayStats, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, fromBoolToColor, fromEnvToString, getLastTask, getLastWorkflow, init, kibanaUrl, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchMasterMode, requestPostIndexation, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, version, view, workflowDecoder, workflowsDecoder)
+module Main exposing (Config, Environment(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayButtonMasterMode, displayButtonMenu, displayEnv, displayHeader, displayInputOperation, displayMessageUser, displayOperation, displayStats, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, fromBoolToColor, fromEnvToString, getLastTask, getLastWorkflow, init, kibanaUrl, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchMasterMode, requestPostIndexation, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, version, view, workflowDecoder, workflowsDecoder)
 
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Attribute, Html, a, button, div, hr, input, span, table, td, text, tr)
+import Html exposing (Attribute, Html, a, button, div, hr, input, span, table, td, text, tr, br, h3)
 import Html.Attributes exposing (attribute, href, placeholder, style, target, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request)
@@ -21,6 +21,8 @@ version : String
 version =
     "v0.1.5"
 
+baseLine : String
+baseLine = version  ++ " - Helpdesk Application by MediaProd - January 2020"
 
 kibanaUrl : String
 kibanaUrl =
@@ -53,7 +55,21 @@ apiHeader : List Header
 apiHeader =
     [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
 
-
+dialogBoxOn : DialogBox
+dialogBoxOn = {
+                isDisplayed= True
+                , bgColor = "lightgray"
+                ,opacity = "0.83"
+                , pointerEvent= "none" 
+                }
+dialogBoxOff : DialogBox
+dialogBoxOff = 
+                {
+                isDisplayed= False
+                , bgColor = "white"
+                ,opacity = "1"
+                , pointerEvent= "auto" 
+                }
 
 ---------- TYPES
 
@@ -93,6 +109,7 @@ type alias Model =
     , url : Url
     , messageUser : String
     , env : Environment
+    , dialogBox : DialogBox
     }
 
 
@@ -138,6 +155,14 @@ type alias Workflow =
 type alias Workflows =
     List Workflow
 
+type alias DialogBox =
+    {
+        isDisplayed : Bool
+        , bgColor : String
+        ,opacity : String
+        , pointerEvent : String 
+    }
+
 
 
 ---------- TYPE Msg
@@ -166,6 +191,7 @@ type Msg
     | CallInitMagistor
     | ResultInitMagistor (Result Http.Error ())
     | CallGetMagistor
+    | CallDialogBox String
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url
 
@@ -186,6 +212,7 @@ init _ url key =
       , url = url
       , messageUser = ""
       , env = PROD
+    , dialogBox = dialogBoxOff
       }
     , Cmd.none
     )
@@ -631,6 +658,8 @@ update msg model =
         CallInitMagistor ->
             ( { model
                 | displayedCategory = MAGISTOR
+                 , messageUser = "Initialisation en cours..."
+                , dialogBox = dialogBoxOff
               }
             , requestPostInitMagistor modelOp currentEnv
             )
@@ -651,6 +680,19 @@ update msg model =
                   }
                 , Cmd.none
                 )
+
+        CallDialogBox status ->
+            let
+                dialogBoxSwitch = if status=="ON" then
+                                        dialogBoxOn
+                                    else
+                                        dialogBoxOff
+            in
+            ( { model
+                | dialogBox = dialogBoxSwitch
+              }
+            , Cmd.none
+            )
 
         ---------- RESULTS
         ResultTasks r ->
@@ -1256,7 +1298,7 @@ displayButtonMagistor op category environnement =
         [ hr [] []
         , button
             [ track msgTrack_InitMagistor environnement
-            , onClick CallInitMagistor
+            , onClick (CallDialogBox "ON")
             , attribute "title" msgTitle_InitializeSale
             , style "width" "200px"
             ]
@@ -1319,11 +1361,22 @@ displayButtonMenu op category =
         ]
 
 
-displayHeader : Environment -> Html Msg
-displayHeader selectedEnv =
+displayHeader : Environment -> String -> Html Msg
+displayHeader selectedEnv baseLineVersion  =
     div [ style "display" "flex", style "flex-direction" "row" ]
         [ div [ style "flex" "1", style "white-space" "nowrap" ] [ displayEnv selectedEnv ]
-        , div [ style "flex" "50" ] []
+        , div [ style "flex" "50", style "text-align" "center" ] [ 
+            
+            div [style "font-family" "arial"
+            , style "font-size" "20px"
+            , style "font-weight" "bold"][ text "PAMELA" ]
+        , 
+        div [
+             style "font-family" "arial"
+            , style "font-size" "12px"
+
+        ][ text baseLineVersion]
+        ]
         , div [ style "flex" "1", style "white-space" "nowrap" ] [ displayStats ]
         ]
 
@@ -1389,6 +1442,41 @@ displayInputOperation opInput =
             [ text "OK" ]
         ]
 
+displayDialog : Bool -> Html Msg
+displayDialog isDisplayed =   
+            let
+                displayMode = if isDisplayed then
+                                    "block"
+                                else
+                                    "none"
+            in
+               div [
+                            style "display" displayMode 
+                            ,style "position" "absolute"
+                            , style "border" "solid"
+                            , style "background-color" "white"
+                            ,style "left" "50%"
+                            ,style "top" "30%"
+                            ,style "width" "360px"
+                            ,style "height" "160px"
+                            ,style "margin-left" "-180px"
+                            , style "margin-top" "-80px"
+                            , style "text-align" "center"
+                            ][
+                                    h3[][text "WARNING !!!"],
+                                    
+                                   text "Every existing associations will be lost !"
+                                   , br [][]
+                                  
+                                   , text "Do you really want to complete the reinitalization ?"
+                                   , br[][],br[][],
+                                   div [ style "display" "flex", style "flex-direction" "row"][
+                                   div[style "flex" "1"][ ], button [style "flex" "1", onClick CallInitMagistor ][text "YES"] , div[style "flex" "1"][ ],  button [style "flex" "1", onClick (CallDialogBox "OFF")][text "NO"] 
+                                   , div[style "flex" "1"][ ]
+                                    ]    
+                                   
+                            ]   
+
 
 
 ---------- TRACKING
@@ -1418,11 +1506,23 @@ view model =
 
         modelOp =
             model.op
+
+        modelDialogBox =
+            model.dialogBox
     in
     { title = "Pamela " ++ version
     , body =
-        [ div [ style "margin" "20px" ]
-            [ displayHeader model.env
+        [ 
+            div [ style "margin" "1%" ]
+            [
+            div [ 
+               style "position" "absolute"
+               , style "width" "98%"
+               , style "background-color" modelDialogBox.bgColor 
+              , style "opacity" modelDialogBox.opacity 
+              , style "pointer-events" modelDialogBox.pointerEvent 
+              ]
+            [ displayHeader model.env baseLine
             , displayInputOperation model.operationInput
             , displayOperation modelOp
             , displayButtonMenu modelOp model.displayedCategory
@@ -1432,6 +1532,10 @@ view model =
             , displayWorkflows modelWorkflows model.displayedCategory modelOp.operationCode model.env
             , displayTasks modelTasks model.displayedCategory modelOp.operationCode model.env
             , displayFooter version
+            ],
+
+                displayDialog modelDialogBox.isDisplayed
+                                     
             ]
         ]
     }

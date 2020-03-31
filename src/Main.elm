@@ -1,11 +1,11 @@
-module Main exposing (Config, Environment(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayButtonMasterMode, displayEnv, displayFooter, displayHeader, displayInputOperation, displayButtonMenu, displayMessageUser, displayOperation, displayStats, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, fromBoolToColor, fromEnvToString, getLastTask, getLastWorkflow, init, kibanaUrl, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchMasterMode, requestPostIndexation, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, version, view, workflowDecoder, workflowsDecoder)
+module Main exposing (Config, Environment(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayButtonMasterMode, displayButtonMenu, displayEnv, displayFooter, displayHeader, displayInputOperation, displayMessageUser, displayOperation, displayStats, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, fromBoolToColor, fromEnvToString, getLastTask, getLastWorkflow, init, kibanaUrl, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchMasterMode, requestPostIndexation, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, version, view, workflowDecoder, workflowsDecoder)
 
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Attribute, Html, a, button, div, hr, img, input, span, table, td, text, tr)
-import Html.Attributes exposing (attribute, href, placeholder, src, style, target, value)
+import Html exposing (Attribute, Html, a, button, div, hr, input, span, table, td, text, tr)
+import Html.Attributes exposing (attribute, href, placeholder, style, target, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request, Error)
+import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request)
 import Json.Decode exposing (Decoder, at, bool, field, int, list, map, map3, map5, map8, string)
 import Json.Encode as Encode
 import List exposing (head, reverse, sortBy)
@@ -14,26 +14,7 @@ import Url exposing (Url, toString)
 
 
 
--------------- CONFIG
-
-
-
-type Environment
-    = CI
-    | PREPROD
-    | PROD
-
-type Category
-    = NOCATEGORY
-    | TASKS
-    | WORKFLOWS
-    | MAGISTOR
-
-type alias Config =
-    { serverMediaAPI : String
-    , serverMSServerAPI : String
-    , defaultOperation : String
-    }
+---------- CONSTANTES
 
 
 version : String
@@ -68,13 +49,42 @@ config selectedEnv =
             }
 
 
+apiHeader : List Header
+apiHeader =
+    [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
+
+
 
 ---------- TYPES
 
 
+type Environment
+    = CI
+    | PREPROD
+    | PROD
+
+
+type Category
+    = NOCATEGORY
+    | TASKS
+    | WORKFLOWS
+    | MAGISTOR
+
+
+
+---------- TYPES ALIAS
+
+
+type alias Config =
+    { serverMediaAPI : String
+    , serverMSServerAPI : String
+    , defaultOperation : String
+    }
+
+
 type alias Model =
     { op : Operation
-    , operationInput : String    
+    , operationInput : String
     , tasks : Tasks
     , responseApi : ResponseApi
     , workflows : Workflows
@@ -135,30 +145,29 @@ type alias Workflows =
 
 type Msg
     = NoOp
-    | SetOperationInput String
     | SetEnv Environment
+    | SetOperationInput String
     | CallGetOperation
-    | GotOperation (Result Http.Error Operation)
+    | ResultOperation (Result Http.Error Operation)
     | CallGetTasks
-    | GotTasks (Result Http.Error (List Task))
+    | ResultTasks (Result Http.Error (List Task))
     | CallSwitchMasterMode
+    | ResultSwitchMasterMode String (Result Http.Error ())
     | CallDeleteTask Int
-    | GotDeleteTask (Result Http.Error ResponseApi)
+    | ResultDeleteTask (Result Http.Error ResponseApi)
     | CallGetWorkflows
-    | GotWorkflows (Result Http.Error Workflows)
+    | ResultWorkflows (Result Http.Error Workflows)
     | CallAbortWorkflow String
-    | GotAbortWorkflow (Result Http.Error ())
-    | GotSwitchMasterMode String (Result Http.Error ())
+    | ResultAbortWorkflow (Result Http.Error ())
     | CallAbortTask Int
-    | GotAbortTask (Result Http.Error ())
+    | ResultAbortTask (Result Http.Error ())
+    | CallIndexation Operation String
+    | ResultIndexation Bool (Result Http.Error ())
+    | CallInitMagistor
+    | ResultInitMagistor (Result Http.Error ())
+    | CallGetMagistor
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url
-    | GotIndexation Bool (Result Http.Error ())
-    | CallIndexation Operation String
-    | GotInitMagistor (Result Http.Error ())
-    | CallInitMagistor
-    | CallGetMagistor
-
 
 
 
@@ -222,12 +231,7 @@ emptyWorkflow =
 
 
 
----------- REQUEST
-
-
-apiHeader : List Header
-apiHeader =
-    [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
+---------- REQUESTS
 
 
 requestGetTasks : String -> Environment -> Cmd Msg
@@ -235,9 +239,12 @@ requestGetTasks op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ op
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/tasks/"
+                ++ op
         , body = emptyBody
-        , expect = expectJson GotTasks tasksDecoder
+        , expect = expectJson ResultTasks tasksDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -248,9 +255,12 @@ requestGetOperation op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/operations/"
+                ++ op
         , body = emptyBody
-        , expect = expectJson GotOperation operationDecoder
+        , expect = expectJson ResultOperation operationDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -265,9 +275,14 @@ requestPostIndexation op masterMode currentEnv =
     Http.request
         { method = "POST"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op.operationCode ++ "/index/VALID?masterMode=" ++ masterMode
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/operations/"
+                ++ op.operationCode
+                ++ "/index/VALID?masterMode="
+                ++ masterMode
         , body = emptyBody
-        , expect = expectWhatever (GotIndexation switchAndIndex)
+        , expect = expectWhatever (ResultIndexation switchAndIndex)
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -285,7 +300,10 @@ requestPatchMasterMode op currentEnv =
     Http.request
         { method = "PATCH"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ fromInt operationId
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/operations/"
+                ++ fromInt operationId
         , body =
             jsonBody
                 (Encode.object
@@ -294,7 +312,7 @@ requestPatchMasterMode op currentEnv =
                     , ( "Value", Encode.string antiMasterMode )
                     ]
                 )
-        , expect = expectWhatever (GotSwitchMasterMode antiMasterMode)
+        , expect = expectWhatever (ResultSwitchMasterMode antiMasterMode)
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -305,9 +323,12 @@ requestDeleteTask taskId currentEnv =
     Http.request
         { method = "DELETE"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ fromInt taskId
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/tasks/"
+                ++ fromInt taskId
         , body = emptyBody
-        , expect = expectJson GotDeleteTask deleteTaskDecoder
+        , expect = expectJson ResultDeleteTask deleteTaskDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -318,9 +339,12 @@ requestAbortTask taskId currentEnv =
     Http.request
         { method = "DELETE"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ fromInt taskId
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/tasks/"
+                ++ fromInt taskId
         , body = emptyBody
-        , expect = expectWhatever GotAbortTask
+        , expect = expectWhatever ResultAbortTask
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -331,9 +355,13 @@ requestGetWorkflows op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op.operationCode ++ "/workflows"
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/operations/"
+                ++ op.operationCode
+                ++ "/workflows"
         , body = emptyBody
-        , expect = expectJson GotWorkflows workflowsDecoder
+        , expect = expectJson ResultWorkflows workflowsDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -344,9 +372,13 @@ requestAbortWorkflow workflowId currentEnv =
     Http.request
         { method = "POST"
         , headers = apiHeader
-        , url = (config currentEnv).serverMediaAPI ++ "/workflows/" ++ workflowId ++ "/abort"
+        , url =
+            (config currentEnv).serverMediaAPI
+                ++ "/workflows/"
+                ++ workflowId
+                ++ "/abort"
         , body = emptyBody
-        , expect = expectWhatever GotAbortWorkflow
+        , expect = expectWhatever ResultAbortWorkflow
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -357,12 +389,17 @@ requestPostInitMagistor op currentEnv =
     Http.request
         { method = "POST"
         , headers = apiHeader
-        , url = (config currentEnv).serverMSServerAPI ++ "/api/context/" ++ op.operationCode ++ "/source-legacy-references" 
+        , url =
+            (config currentEnv).serverMSServerAPI
+                ++ "/api/context/"
+                ++ op.operationCode
+                ++ "/source-legacy-references"
         , body = emptyBody
-        , expect = expectWhatever GotInitMagistor
+        , expect = expectWhatever ResultInitMagistor
         , timeout = Nothing
         , tracker = Nothing
         }
+
 
 
 ---------- HELPERS
@@ -499,6 +536,7 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
+        ---------- SETS
         SetEnv selectedEnv ->
             ( { model
                 | env = selectedEnv
@@ -513,14 +551,27 @@ update msg model =
             )
 
         SetOperationInput op ->
-            ( { model | operationInput = op }, Cmd.none )
+            ( { model | operationInput = op }
+            , Cmd.none
+            )
 
+        ---------- CALLS
         CallGetTasks ->
-            if model.displayedCategory==TASKS then
-                ( { model | displayedCategory = NOCATEGORY, messageUser = "" }, Cmd.none )
+            if model.displayedCategory == TASKS then
+                ( { model
+                    | displayedCategory = NOCATEGORY
+                    , messageUser = ""
+                  }
+                , Cmd.none
+                )
 
             else
-                ( { model | displayedCategory = TASKS, messageUser = "" }, requestGetTasks opInput currentEnv )
+                ( { model
+                    | displayedCategory = TASKS
+                    , messageUser = ""
+                  }
+                , requestGetTasks opInput currentEnv
+                )
 
         CallGetOperation ->
             ( { model
@@ -555,7 +606,7 @@ update msg model =
             ( model, requestDeleteTask taskId currentEnv )
 
         CallGetWorkflows ->
-            if model.displayedCategory==WORKFLOWS then
+            if model.displayedCategory == WORKFLOWS then
                 ( { model
                     | displayedCategory = NOCATEGORY
                     , messageUser = ""
@@ -565,7 +616,7 @@ update msg model =
 
             else
                 ( { model
-                    | displayedCategory=WORKFLOWS
+                    | displayedCategory = WORKFLOWS
                     , messageUser = ""
                   }
                 , requestGetWorkflows modelOp currentEnv
@@ -585,14 +636,24 @@ update msg model =
             )
 
         CallGetMagistor ->
-            if model.displayedCategory==MAGISTOR then
-                ( { model | displayedCategory = NOCATEGORY, messageUser = "" }, Cmd.none )
+            if model.displayedCategory == MAGISTOR then
+                ( { model
+                    | displayedCategory = NOCATEGORY
+                    , messageUser = ""
+                  }
+                , Cmd.none
+                )
 
             else
-                ( { model | displayedCategory = MAGISTOR, messageUser = "" }, Cmd.none )
+                ( { model
+                    | displayedCategory = MAGISTOR
+                    , messageUser = ""
+                  }
+                , Cmd.none
+                )
 
-
-        GotTasks r ->
+        ---------- RESULTS
+        ResultTasks r ->
             let
                 getTasks =
                     case r of
@@ -608,7 +669,7 @@ update msg model =
             , Cmd.none
             )
 
-        GotOperation r ->
+        ResultOperation r ->
             let
                 gotOperation =
                     case r of
@@ -624,7 +685,7 @@ update msg model =
             , requestGetTasks opInput currentEnv
             )
 
-        GotDeleteTask r ->
+        ResultDeleteTask r ->
             let
                 gotResponseApi =
                     case r of
@@ -634,11 +695,13 @@ update msg model =
                         Err _ ->
                             emptyResponseApi
             in
-            ( { model | responseApi = gotResponseApi }
+            ( { model
+                | responseApi = gotResponseApi
+              }
             , requestGetTasks opInput currentEnv
             )
 
-        GotWorkflows r ->
+        ResultWorkflows r ->
             let
                 gotWorkflows =
                     case r of
@@ -648,49 +711,103 @@ update msg model =
                         Err _ ->
                             [ emptyWorkflow ]
             in
-            ( { model | workflows = gotWorkflows }, Cmd.none )
+            ( { model
+                | workflows = gotWorkflows
+              }
+            , Cmd.none
+            )
 
-        GotAbortWorkflow _ ->
-            ( { model | messageUser = "Le bouton publication de la vente " ++ operationCode ++ " est débloqué." }, requestGetWorkflows modelOp currentEnv )
+        ResultAbortWorkflow _ ->
+            ( { model
+                | messageUser =
+                    "Le bouton publication de la vente "
+                        ++ operationCode
+                        ++ " est débloqué."
+              }
+            , requestGetWorkflows modelOp currentEnv
+            )
 
-        GotSwitchMasterMode masterMode _ ->
-            ( { model | displayedCategory=TASKS
-                    , messageUser = "La vente " ++ operationCode ++ " est passée en mode " ++ masterMode ++ "." }
-                    , requestGetOperation opInput currentEnv )
+        ResultSwitchMasterMode masterMode _ ->
+            ( { model
+                | displayedCategory = TASKS
+                , messageUser =
+                    "La vente "
+                        ++ operationCode
+                        ++ " est passée en mode "
+                        ++ masterMode
+                        ++ "."
+              }
+            , requestGetOperation opInput currentEnv
+            )
 
-        GotAbortTask _ ->
-            ( { model | messageUser = "La task en PENDING est supprimée." }, requestGetTasks opInput currentEnv )
+        ResultAbortTask _ ->
+            ( { model
+                | messageUser = "La task en PENDING est supprimée."
+              }
+            , requestGetTasks opInput currentEnv
+            )
 
-        GotIndexation switchAndIndex _ ->
+        ResultIndexation switchAndIndex _ ->
             let
                 msgIndexation =
                     if switchAndIndex then
-                        "L'indexation " ++ modelOp.masterMode ++ " de la vente " ++ operationCode ++ " est en cours."
+                        "L'indexation "
+                            ++ modelOp.masterMode
+                            ++ " de la vente "
+                            ++ operationCode
+                            ++ " est en cours."
 
                     else
-                        "La vente " ++ operationCode ++ " est passée en mode " ++ modelOp.masterMode ++ " et l'indexation est en cours."
+                        "La vente "
+                            ++ operationCode
+                            ++ " est passée en mode "
+                            ++ modelOp.masterMode
+                            ++ " et l'indexation est en cours."
             in
-            ( { model | messageUser = msgIndexation }, requestGetTasks opInput currentEnv )
+            ( { model
+                | messageUser = msgIndexation
+              }
+            , requestGetTasks opInput currentEnv
+            )
 
-        GotInitMagistor r ->
+        ResultInitMagistor r ->
             let
-                msgInitMagistor = 
+                msgInitMagistor =
                     case r of
-                        Ok _ -> 
-                            "La vente " ++ operationCode ++ " a été réinitialisée et resynchronisée avec Magistor."
-                        Err e ->
-                            let 
-                                errorMsg = case e of
-                                    Http.BadUrl url -> "Bad URL : " ++ url
-                                    Http.Timeout -> "Time out."
-                                    Http.NetworkError -> "Network error."
-                                    Http.BadStatus i -> fromInt i
-                                    Http.BadBody body -> "Bad Body - " ++ body
+                        Ok _ ->
+                            "La vente "
+                                ++ operationCode
+                                ++ " a été réinitialisée et resynchronisée avec Magistor."
 
+                        Err e ->
+                            let
+                                errorMsg =
+                                    case e of
+                                        Http.BadUrl url ->
+                                            "Bad URL : " ++ url
+
+                                        Http.Timeout ->
+                                            "Time out."
+
+                                        Http.NetworkError ->
+                                            "Network error."
+
+                                        Http.BadStatus i ->
+                                            fromInt i
+
+                                        Http.BadBody body ->
+                                            "Bad Body - " ++ body
                             in
-                            "La vente " ++ operationCode ++ " n'a pas pu être réinitialisée. Error : "  ++ errorMsg
+                            "La vente "
+                                ++ operationCode
+                                ++ " n'a pas pu être réinitialisée. Error : "
+                                ++ errorMsg
             in
-             ( { model | messageUser = msgInitMagistor }, Cmd.none )
+            ( { model
+                | messageUser = msgInitMagistor
+              }
+            , Cmd.none
+            )
 
         LinkClicked urlRequest ->
             case urlRequest of
@@ -701,15 +818,25 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | url = url }
+            ( { model
+                | url = url
+              }
             , Cmd.none
             )
+
+
 
 ---------- DISPLAYS
 
 
 displayFooter : String -> Html Msg
 displayFooter v =
+    let
+        msgFooter =
+            "Pamela "
+                ++ v
+                ++ " - Helpdesk Application by MediaProd - January 2020"
+    in
     div []
         [ hr [] []
         , div
@@ -717,7 +844,7 @@ displayFooter v =
             , style "font-family" "arial"
             , style "font-size" "12px"
             ]
-            [ text ("Pamela " ++ v ++ " - Helpdesk Application by MediaProd - January 2020") ]
+            [ text msgFooter ]
         ]
 
 
@@ -731,7 +858,7 @@ displayWorkflows workflows category operationCode environment =
             getLastWorkflow workflowsSortedByStarted
 
         displayMode =
-            if category==WORKFLOWS then
+            if category == WORKFLOWS then
                 "block"
 
             else
@@ -746,7 +873,8 @@ displayWorkflows workflows category operationCode environment =
     in
     div [ style "display" displayMode ]
         [ hr [] []
-        , div [ style "color" "RED" ] [ text messageNoWorkflow ]
+        , div [ style "color" "RED" ]
+            [ text messageNoWorkflow ]
         , div []
             (List.map
                 (\w ->
@@ -767,11 +895,26 @@ displayWorkflows workflows category operationCode environment =
                                     text ""
                                 ]
                             ]
-                        , tr [] [ td [] [ text "Id" ], td [] [ text w.id ] ]
-                        , tr [] [ td [] [ text "User" ], td [] [ text w.user ] ]
-                        , tr [] [ td [] [ text "Status" ], td [ style "color" "blue" ] [ text (w.status ++ " ") ] ]
-                        , tr [] [ td [] [ text "Created" ], td [] [ text w.created ] ]
-                        , tr [] [ td [] [ text "Started" ], td [] [ text w.started ] ]
+                        , tr []
+                            [ td [] [ text "Id" ]
+                            , td [] [ text w.id ]
+                            ]
+                        , tr []
+                            [ td [] [ text "User" ]
+                            , td [] [ text w.user ]
+                            ]
+                        , tr []
+                            [ td [] [ text "Status" ]
+                            , td [ style "color" "blue" ] [ text (w.status ++ " ") ]
+                            ]
+                        , tr []
+                            [ td [] [ text "Created" ]
+                            , td [] [ text w.created ]
+                            ]
+                        , tr []
+                            [ td [] [ text "Started" ]
+                            , td [] [ text w.started ]
+                            ]
                         ]
                 )
                 (List.filter (\wf -> wf.id /= "-1") workflowsSortedByStarted)
@@ -783,7 +926,7 @@ displayTasks : Tasks -> Category -> String -> Environment -> Html Msg
 displayTasks tasks display operationCode environnement =
     let
         displayMode =
-            if display==TASKS then
+            if display == TASKS then
                 "block"
 
             else
@@ -810,25 +953,57 @@ displayTasks tasks display operationCode environnement =
                             else
                                 "black"
                     in
-                    table [ style "border" "solid", style "width" "100%" ]
+                    table
+                        [ style "border" "solid"
+                        , style "width" "100%"
+                        ]
                         [ tr []
                             [ td [ style "width" "30%" ] [ text "TASKS" ]
                             , td [ style "width" "70%" ]
                                 [ if t.status == "Pending" then
-                                    button [ style "width" "200px", onClick (CallAbortTask t.id), track ("Delete Pending task on " ++ operationCode) environnement ] [ text "Delete this pending task" ]
+                                    button
+                                        [ style "width" "200px"
+                                        , onClick (CallAbortTask t.id)
+                                        , track ("Delete Pending task on " ++ operationCode) environnement
+                                        ]
+                                        [ text "Delete this pending task" ]
 
                                   else
                                     text ""
                                 ]
                             ]
-                        , tr [] [ td [] [ text "Id" ], td [] [ text (fromInt t.id) ] ]
-                        , tr [] [ td [] [ text "master_mode" ], td [ style "color" "blue" ] [ text t.master_mode ] ]
-                        , tr [] [ td [] [ text "status" ], td [ style "color" pendingColor ] [ text t.status ] ]
-                        , tr [] [ td [] [ text "user_validator" ], td [] [ text t.user_validator ] ]
-                        , tr [] [ td [] [ text "processed_by" ], td [] [ text t.processed_by ] ]
-                        , tr [] [ td [] [ text "reprise_type" ], td [] [ text t.reprise_type ] ]
-                        , tr [] [ td [] [ text "creation_date" ], td [] [ text t.creation_date ] ]
-                        , tr [] [ td [] [ text "modification_date" ], td [] [ text t.modification_date ] ]
+                        , tr []
+                            [ td [] [ text "Id" ]
+                            , td [] [ text (fromInt t.id) ]
+                            ]
+                        , tr []
+                            [ td [] [ text "master_mode" ]
+                            , td [ style "color" "blue" ] [ text t.master_mode ]
+                            ]
+                        , tr []
+                            [ td [] [ text "status" ]
+                            , td [ style "color" pendingColor ] [ text t.status ]
+                            ]
+                        , tr []
+                            [ td [] [ text "user_validator" ]
+                            , td [] [ text t.user_validator ]
+                            ]
+                        , tr []
+                            [ td [] [ text "processed_by" ]
+                            , td [] [ text t.processed_by ]
+                            ]
+                        , tr []
+                            [ td [] [ text "reprise_type" ]
+                            , td [] [ text t.reprise_type ]
+                            ]
+                        , tr []
+                            [ td [] [ text "creation_date" ]
+                            , td [] [ text t.creation_date ]
+                            ]
+                        , tr []
+                            [ td [] [ text "modification_date" ]
+                            , td [] [ text t.modification_date ]
+                            ]
                         ]
                 )
                 tasks
@@ -849,9 +1024,18 @@ displayOperation o =
     div [ style "display" displayMode ]
         [ hr [] []
         , table [ style "border" "solid", style "width" "500px" ]
-            [ tr [] [ td [] [ text "OperationId" ], td [ style "width" "250px" ] [ text (fromInt o.operationId) ] ]
-            , tr [] [ td [] [ text "OperationCode" ], td [] [ text o.operationCode ] ]
-            , tr [] [ td [] [ text "Master Mode" ], td [] [ text o.masterMode ] ]
+            [ tr []
+                [ td [] [ text "OperationId" ]
+                , td [ style "width" "250px" ] [ text (fromInt o.operationId) ]
+                ]
+            , tr []
+                [ td [] [ text "OperationCode" ]
+                , td [] [ text o.operationCode ]
+                ]
+            , tr []
+                [ td [] [ text "Master Mode" ]
+                , td [] [ text o.masterMode ]
+                ]
             ]
         ]
 
@@ -900,35 +1084,51 @@ displayButtonMasterMode op lastTask category environnement =
                 ++ antiMasterModeStr
 
         msgTrack_SwitchMasterMode =
-            "Switch MasterMode to " ++ antiMasterModeStr ++ " on " ++ op.operationCode
+            "Switch MasterMode to "
+                ++ antiMasterModeStr
+                ++ " on "
+                ++ op.operationCode
 
         msgTitle_MasterModeCannotBeChanged =
             "The Master Mode can not be changed because the STATUS of the last task is Pending..."
 
         msgTitle_SwitchMasterMode =
-            "Switch the current Master Mode from " ++ masterModeStr ++ " to " ++ antiMasterModeStr
+            "Switch the current Master Mode from "
+                ++ masterModeStr
+                ++ " to "
+                ++ antiMasterModeStr
 
         msgTrack_Indexation =
-            "Launch the indexation " ++ masterModeStr ++ " on " ++ op.operationCode
+            "Launch the indexation "
+                ++ masterModeStr
+                ++ " on "
+                ++ op.operationCode
 
         msgTitle_IndexationNotAvailable =
             "The indexation is not available because a task has already been pending..."
 
         msgTitle_Indexation =
-            "Launch an indexation " ++ masterModeStr
+            "Launch an indexation "
+                ++ masterModeStr
 
         msgButton_Indexation =
-            "Indexation " ++ masterModeStr
+            "Indexation "
+                ++ masterModeStr
 
         msgTitle_SwitchMasterMode_Indexation =
-            "Switch the current Master Mode from " ++ masterModeStr ++ " to " ++ antiMasterModeStr ++ " + Indexation " ++ antiMasterModeStr
+            "Switch the current Master Mode from "
+                ++ masterModeStr
+                ++ " to "
+                ++ antiMasterModeStr
+                ++ " + Indexation "
+                ++ antiMasterModeStr
     in
     div
         [ style "display" displayMode ]
         [ hr [] []
         , button
-            [ style "width" "200px",
-                attribute enableMasterModeSwitch ""
+            [ style "width" "200px"
+            , attribute enableMasterModeSwitch ""
             , track msgTrack_SwitchMasterMode environnement
             , if enableMasterModeSwitch == "disabled" then
                 attribute "title" msgTitle_MasterModeCannotBeChanged
@@ -940,8 +1140,8 @@ displayButtonMasterMode op lastTask category environnement =
             [ text buttonLabelMasterMode ]
         , text " "
         , button
-            [  style "width" "200px",
-            onClick (CallIndexation op masterModeStr)
+            [ style "width" "200px"
+            , onClick (CallIndexation op masterModeStr)
             , attribute enableMasterModeSwitch ""
             , track msgTrack_Indexation environnement
             , if enableMasterModeSwitch == "disabled" then
@@ -961,7 +1161,8 @@ displayButtonMasterMode op lastTask category environnement =
 
           else
             button
-                [ style "width" "400px", attribute enableMasterModeSwitch ""
+                [ style "width" "400px"
+                , attribute enableMasterModeSwitch ""
                 , track msgTrack_SwitchMasterMode environnement
                 , if enableMasterModeSwitch == "disabled" then
                     attribute "title" msgTitle_MasterModeCannotBeChanged
@@ -973,6 +1174,7 @@ displayButtonMasterMode op lastTask category environnement =
                 [ text buttonLabelMasterModeIndexation ]
         ]
 
+
 displayButtonCategory : Operation -> Category -> Category -> Html Msg
 displayButtonCategory op categoryButton categoryOn =
     let
@@ -982,29 +1184,53 @@ displayButtonCategory op categoryButton categoryOn =
 
             else
                 "block"
-                
-        isDisp = categoryButton==categoryOn
+
+        isDisp =
+            categoryButton == categoryOn
+
+        msgButton_Tasks =
+            "Tasks"
+
+        msgButton_Workflows =
+            "Publication Workflows"
+
+        msgButton_Magistor =
+            "Magistor"
     in
     div
-        [ style "display" displayMode
-        ]
-        [  
-            case categoryButton of 
-                TASKS ->
-                    button [ onClick CallGetTasks, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Tasks" ] 
-          
-                WORKFLOWS ->        
-                    button [ onClick CallGetWorkflows, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Publication Workflows" ]
-                
-                MAGISTOR ->
-                    button [ onClick CallGetMagistor, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Magistor" ] 
-                
-                NOCATEGORY ->
-                    text ""
+        [ style "display" displayMode ]
+        [ case categoryButton of
+            TASKS ->
+                button
+                    [ onClick CallGetTasks
+                    , style "width" "200px"
+                    , style "background-color" (fromBoolToColor isDisp)
+                    ]
+                    [ text msgButton_Tasks ]
+
+            WORKFLOWS ->
+                button
+                    [ onClick CallGetWorkflows
+                    , style "width" "200px"
+                    , style "background-color" (fromBoolToColor isDisp)
+                    ]
+                    [ text msgButton_Workflows ]
+
+            MAGISTOR ->
+                button
+                    [ onClick CallGetMagistor
+                    , style "width" "200px"
+                    , style "background-color" (fromBoolToColor isDisp)
+                    ]
+                    [ text msgButton_Magistor ]
+
+            NOCATEGORY ->
+                text ""
         ]
 
+
 displayButtonMagistor : Operation -> Category -> Environment -> Html Msg
-displayButtonMagistor op category  environnement =
+displayButtonMagistor op category environnement =
     let
         displayMode =
             if category == MAGISTOR then
@@ -1012,19 +1238,31 @@ displayButtonMagistor op category  environnement =
 
             else
                 "none"
-        
-        msgTrack_InitMagistor = "Magistor initialization on " ++ op.operationCode
+
+        msgTrack_InitMagistor =
+            "Magistor initialization on "
+                ++ op.operationCode
+
+        msgTitle_InitializeSale =
+            "Initialize the sale "
+                ++ op.operationCode
+                ++ " with Magistor data"
+
+        msgButton_initialize =
+            "Initialize "
+                ++ op.operationCode
     in
     div [ style "display" displayMode ]
-        [ hr [] [], 
-            button [
-                track msgTrack_InitMagistor environnement
-                , onClick CallInitMagistor
-                , attribute "title" ("Initialize the sale "++ op.operationCode ++ " with Magistor data")
-                , style "width" "200px"
-            ][text ("Initialize "++ op.operationCode )]
-         
-    ]
+        [ hr [] []
+        , button
+            [ track msgTrack_InitMagistor environnement
+            , onClick CallInitMagistor
+            , attribute "title" msgTitle_InitializeSale
+            , style "width" "200px"
+            ]
+            [ text msgButton_initialize ]
+        ]
+
 
 displayMessageUser : String -> Html Msg
 displayMessageUser message =
@@ -1049,17 +1287,34 @@ displayButtonMenu op category =
 
             else
                 "block"
-        
+
+        msgTitle_Tasks =
+            "Check the Tasks | Switch Master Mode"
+
+        msgTitle_Workflows =
+            "Check the Publication Workflows | Abort Publication"
+
+        msgTitle_Magistors =
+            "Reinitialize the sale with Magistor data"
     in
     div [ style "display" displayMode ]
         [ hr [] []
         , div [ style "display" "flex" ]
-            [ div [ style "flex" "1", attribute "title" "Check the Tasks | Switch Master Mode" ]
-                    [ displayButtonCategory op TASKS category]
-            , div [ style "flex" "1", attribute "title" "Check the Publication Workflows | Abort Publication" ] 
-                    [ displayButtonCategory op WORKFLOWS category] 
-            , div [ style "flex" "1", attribute "title" "Reinitialize the sale with Magistor data" ]
-                    [ displayButtonCategory op MAGISTOR category] 
+            [ div
+                [ style "flex" "1"
+                , attribute "title" msgTitle_Tasks
+                ]
+                [ displayButtonCategory op TASKS category ]
+            , div
+                [ style "flex" "1"
+                , attribute "title" msgTitle_Workflows
+                ]
+                [ displayButtonCategory op WORKFLOWS category ]
+            , div
+                [ style "flex" "1"
+                , attribute "title" msgTitle_Magistors
+                ]
+                [ displayButtonCategory op MAGISTOR category ]
             ]
         ]
 
@@ -1086,13 +1341,17 @@ displayEnv selectedEnv =
 
                 PREPROD ->
                     PROD
+
+        msgTitle_swtichTo =
+            "Switch to "
+                ++ fromEnvToString nextEnv
     in
     div []
         [ text "Environment : "
         , span
             [ onClick (SetEnv nextEnv)
             , style "cursor" "pointer"
-            , attribute "title" ("Switch to " ++ fromEnvToString nextEnv)
+            , attribute "title" msgTitle_swtichTo
             ]
             [ text (fromEnvToString selectedEnv) ]
         ]
@@ -1100,9 +1359,16 @@ displayEnv selectedEnv =
 
 displayStats : Html Msg
 displayStats =
+    let
+        msgA_statisticsOnKibana =
+            "Statistics on Kibana"
+    in
     div []
-        [ a [ target "_blank", href kibanaUrl ]
-            [ text "Statistics on Kibana" ]
+        [ a
+            [ target "_blank"
+            , href kibanaUrl
+            ]
+            [ text msgA_statisticsOnKibana ]
         ]
 
 
@@ -1116,7 +1382,10 @@ displayInputOperation opInput =
             , placeholder "OperationCode"
             ]
             []
-        , button [ onClick CallGetOperation , style "width" "100px"]
+        , button
+            [ onClick CallGetOperation
+            , style "width" "100px"
+            ]
             [ text "OK" ]
         ]
 
@@ -1127,7 +1396,11 @@ displayInputOperation opInput =
 
 track : String -> Environment -> Attribute msg
 track label environment =
-    attribute "data-vpa-id" (label ++ " - " ++ fromEnvToString environment)
+    attribute "data-vpa-id"
+        (label
+            ++ " - "
+            ++ fromEnvToString environment
+        )
 
 
 

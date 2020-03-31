@@ -1,11 +1,11 @@
-module Main exposing (Config, Env(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayCallGetWorkflows, displayCallMasterMode, displayCallTasks, displayFooter, displayOperation, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, env, fromBoolToString, fromEnvToString, getLastTask, getLastWorkflow, init, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchNAStoDAM, requestPostDAMtoNAS, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, view, workflowDecoder, workflowsDecoder)
+module Main exposing (Config, Environment(..), Model, Msg(..), Operation, ResponseApi, Task, Tasks, Workflow, Workflows, apiHeader, config, deleteTaskDecoder, displayButtonMasterMode, displayEnv, displayFooter, displayHeader, displayInputOperation, displayButtonMenu, displayMessageUser, displayOperation, displayStats, displayTasks, displayWorkflows, emptyOperation, emptyResponseApi, emptyTask, emptyWorkflow, fromBoolToColor, fromEnvToString, getLastTask, getLastWorkflow, init, kibanaUrl, main, operationDecoder, requestAbortTask, requestAbortWorkflow, requestDeleteTask, requestGetOperation, requestGetTasks, requestGetWorkflows, requestPatchMasterMode, requestPostIndexation, taskDecoder, tasksDecoder, toAntiMasterMode, track, update, version, view, workflowDecoder, workflowsDecoder)
 
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Attribute, Html, a, br, button, div, hr, input, table, td, text, tr)
-import Html.Attributes exposing (attribute, href, placeholder, style, target, value)
+import Html exposing (Attribute, Html, a, button, div, hr, img, input, span, table, td, text, tr)
+import Html.Attributes exposing (attribute, href, placeholder, src, style, target, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request)
+import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request, Error)
 import Json.Decode exposing (Decoder, at, bool, field, int, list, map, map3, map5, map8, string)
 import Json.Encode as Encode
 import List exposing (head, reverse, sortBy)
@@ -14,52 +14,57 @@ import Url exposing (Url, toString)
 
 
 
----------- CONFIG
+-------------- CONFIG
 
 
-type Env
+
+type Environment
     = CI
     | PREPROD
     | PROD
 
-
-env : Env
-env =
-    PROD
-
-
-version : String
-version =
-    "v0.1.1"
-
-
-kibanaUrl : String
-kibanaUrl =
-    "https://kibana-test.noc.vpgrp.io/s/sourcing/app/kibana#/visualize/edit/fa0d9e70-4db4-11ea-a724-d5d66a9f9181?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now%2Fd,to:now%2Fd))&_a=(filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'7a38f240-001f-11ea-a263-6101354a1020',key:app,negate:!f,params:(query:Pamela),type:phrase,value:Pamela),query:(match:(app:(query:Pamela,type:phrase)))),('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'7a38f240-001f-11ea-a263-6101354a1020',key:eventName,negate:!f,params:(query:click),type:phrase,value:click),query:(match:(eventName:(query:click,type:phrase))))),linked:!f,query:(language:kuery,query:''),uiState:(vis:(params:(sort:(columnIndex:1,direction:desc)))),vis:(aggs:!((enabled:!t,id:'1',params:(),schema:metric,type:count),(enabled:!t,id:'2',params:(field:attributes.value.keyword,missingBucket:!f,missingBucketLabel:Missing,order:desc,orderBy:'1',otherBucket:!f,otherBucketLabel:Other,size:20),schema:bucket,type:terms),(enabled:!t,id:'3',params:(drop_partials:!f,extended_bounds:(),field:reportTime,interval:auto,min_doc_count:1,timeRange:(from:now%2Fw,to:now%2Fw),useNormalizedEsInterval:!t),schema:bucket,type:date_histogram)),params:(dimensions:(buckets:!((accessor:0,aggType:terms,format:(id:terms,params:(id:string,missingBucketLabel:Missing,otherBucketLabel:Other)),params:()),(accessor:1,aggType:date_histogram,format:(id:date,params:(pattern:'YYYY-MM-DD%20HH:mm')),params:())),metrics:!((accessor:2,aggType:count,format:(id:number),params:()))),perPage:10,percentageCol:Count,showMetricsAtAllLevels:!f,showPartialRows:!f,showTotal:!t,sort:(columnIndex:!n,direction:!n),totalFunc:sum),title:Pamela,type:table))"
-
+type Category
+    = NOCATEGORY
+    | TASKS
+    | WORKFLOWS
+    | MAGISTOR
 
 type alias Config =
-    { server : String
+    { serverMediaAPI : String
+    , serverMSServerAPI : String
     , defaultOperation : String
     }
 
 
-config : Config
-config =
-    case env of
+version : String
+version =
+    "v0.1.5"
+
+
+kibanaUrl : String
+kibanaUrl =
+    "https://kibana.noc.vpgrp.io/s/sourcing/app/kibana#/visualize/create?type=table&indexPattern=ba55b700-ffd4-11e9-926b-59f96530211d&_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-7d,mode:quick,to:now))&_a=(filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:ba55b700-ffd4-11e9-926b-59f96530211d,key:app,negate:!f,params:(query:Pamela,type:phrase),type:phrase,value:Pamela),query:(match:(app:(query:Pamela,type:phrase)))),('$state':(store:appState),meta:(alias:!n,disabled:!f,index:ba55b700-ffd4-11e9-926b-59f96530211d,key:eventName,negate:!f,params:(query:click,type:phrase),type:phrase,value:click),query:(match:(eventName:(query:click,type:phrase))))),linked:!f,query:(language:lucene,query:''),uiState:(vis:(params:(sort:(columnIndex:0,direction:desc)))),vis:(aggs:!((enabled:!t,id:'1',params:(customLabel:Number),schema:metric,type:count),(enabled:!t,id:'2',params:(customInterval:'2h',drop_partials:!f,extended_bounds:(),field:reportTime,interval:h,min_doc_count:1,timeRange:(from:now-7d,mode:quick,to:now),useNormalizedEsInterval:!t),schema:bucket,type:date_histogram),(enabled:!t,id:'3',params:(field:data.vpaId-tags.keyword,missingBucket:!f,missingBucketLabel:Missing,order:desc,orderBy:'1',otherBucket:!f,otherBucketLabel:Other,size:5),schema:bucket,type:terms)),params:(perPage:10,showMetricsAtAllLevels:!f,showPartialRows:!f,showTotal:!f,sort:(columnIndex:!n,direction:!n),totalFunc:sum),title:'New%20Visualization',type:table))"
+
+
+config : Environment -> Config
+config selectedEnv =
+    case selectedEnv of
         PROD ->
-            { server = "http://mediaapi.vpback.vpgrp.io/api/v1"
-            , defaultOperation = "" -- GNORWAY38 -- AMARTINI2
+            { serverMediaAPI = "http://mediaapi.vpback.vpgrp.io/api/v1"
+            , serverMSServerAPI = "https://api-mediashare3.vpback.vpgrp.io/"
+            , defaultOperation = ""
             }
 
         PREPROD ->
-            { server = "http://mediaapi-pp.vpback.vpgrp.io/api/v1"
-            , defaultOperation = "" -- NSCASHMERE38 -- LADC5
+            { serverMediaAPI = "http://mediaapi-pp.vpback.vpgrp.io/api/v1"
+            , serverMSServerAPI = "https://pp-api-mediashare.vpback.vpgrp.io"
+            , defaultOperation = ""
             }
 
         CI ->
-            { server = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
-            , defaultOperation = ""
+            { serverMediaAPI = "http://mediaapi-ci.vpback.vpgrp.io/api/v1"
+            , serverMSServerAPI = "https://ci-api-mediashare.vpback.vpgrp.io"
+            , defaultOperation = "LADC5"
             }
 
 
@@ -69,15 +74,15 @@ config =
 
 type alias Model =
     { op : Operation
-    , operationInput : String
+    , operationInput : String    
     , tasks : Tasks
     , responseApi : ResponseApi
     , workflows : Workflows
-    , displayWorkflows : Bool
-    , displayTasks : Bool
+    , displayedCategory : Category
     , key : Nav.Key
     , url : Url
     , messageUser : String
+    , env : Environment
     }
 
 
@@ -115,9 +120,7 @@ type alias Workflow =
     { id : String
     , status : String
     , user : String
-    , --  aborted: String,
-      --  ended: String,
-      created : String
+    , created : String
     , started : String
     }
 
@@ -133,26 +136,29 @@ type alias Workflows =
 type Msg
     = NoOp
     | SetOperationInput String
+    | SetEnv Environment
     | CallGetOperation
     | GotOperation (Result Http.Error Operation)
     | CallGetTasks
     | GotTasks (Result Http.Error (List Task))
-    | CallSwitchDAMtoNAS
-    | CallSwitchNAStoDAM
+    | CallSwitchMasterMode
     | CallDeleteTask Int
     | GotDeleteTask (Result Http.Error ResponseApi)
     | CallGetWorkflows
     | GotWorkflows (Result Http.Error Workflows)
     | CallAbortWorkflow String
     | GotAbortWorkflow (Result Http.Error ())
-    | GotSwitchDAMtoNAS (Result Http.Error ())
-    | GotSwithcNAStoDAM (Result Http.Error ())
+    | GotSwitchMasterMode String (Result Http.Error ())
     | CallAbortTask Int
     | GotAbortTask (Result Http.Error ())
     | LinkClicked Browser.UrlRequest
-    | UrlChanged Url.Url
-    | GotIndexation (Result Http.Error ())
-    | CallIndexation Operation
+    | UrlChanged Url
+    | GotIndexation Bool (Result Http.Error ())
+    | CallIndexation Operation String
+    | GotInitMagistor (Result Http.Error ())
+    | CallInitMagistor
+    | CallGetMagistor
+
 
 
 
@@ -162,15 +168,15 @@ type Msg
 init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url key =
     ( { op = emptyOperation
-      , operationInput = config.defaultOperation
+      , operationInput = (config PROD).defaultOperation
       , tasks = [ emptyTask ]
       , responseApi = emptyResponseApi
       , workflows = [ emptyWorkflow ]
-      , displayTasks = False
-      , displayWorkflows = False
+      , displayedCategory = NOCATEGORY
       , key = key
       , url = url
       , messageUser = ""
+      , env = PROD
       }
     , Cmd.none
     )
@@ -224,12 +230,12 @@ apiHeader =
     [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
 
 
-requestGetTasks : String -> Cmd Msg
-requestGetTasks op =
+requestGetTasks : String -> Environment -> Cmd Msg
+requestGetTasks op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = config.server ++ "/tasks/" ++ op
+        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ op
         , body = emptyBody
         , expect = expectJson GotTasks tasksDecoder
         , timeout = Nothing
@@ -237,12 +243,12 @@ requestGetTasks op =
         }
 
 
-requestGetOperation : String -> Cmd Msg
-requestGetOperation op =
+requestGetOperation : String -> Environment -> Cmd Msg
+requestGetOperation op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = config.server ++ "/operations/" ++ op
+        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op
         , body = emptyBody
         , expect = expectJson GotOperation operationDecoder
         , timeout = Nothing
@@ -250,41 +256,25 @@ requestGetOperation op =
         }
 
 
-requestPostIndexation : String -> String -> Cmd Msg
-requestPostIndexation operationCode masterMode =
-    Http.request
-        { method = "POST"
-        , headers = apiHeader
-        , url = config.server ++ "/operations/" ++ operationCode ++ "/index/VALID?masterMode=" ++ masterMode
-        , body = emptyBody
-        , expect = expectWhatever GotIndexation
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-requestPostDAMtoNAS : Operation -> Cmd Msg
-requestPostDAMtoNAS op =
+requestPostIndexation : Operation -> String -> Environment -> Cmd Msg
+requestPostIndexation op masterMode currentEnv =
     let
-        operation =
-            op.operationCode
-
-        antiMasterMode =
-            toAntiMasterMode op.masterMode
+        switchAndIndex =
+            op.masterMode == masterMode
     in
     Http.request
         { method = "POST"
         , headers = apiHeader
-        , url = config.server ++ "/operations/" ++ operation ++ "/index/VALID?masterMode=" ++ antiMasterMode
+        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op.operationCode ++ "/index/VALID?masterMode=" ++ masterMode
         , body = emptyBody
-        , expect = expectWhatever GotSwitchDAMtoNAS
+        , expect = expectWhatever (GotIndexation switchAndIndex)
         , timeout = Nothing
         , tracker = Nothing
         }
 
 
-requestPatchNAStoDAM : Operation -> Cmd Msg
-requestPatchNAStoDAM op =
+requestPatchMasterMode : Operation -> Environment -> Cmd Msg
+requestPatchMasterMode op currentEnv =
     let
         operationId =
             op.operationId
@@ -295,7 +285,7 @@ requestPatchNAStoDAM op =
     Http.request
         { method = "PATCH"
         , headers = apiHeader
-        , url = config.server ++ "/operations/" ++ fromInt operationId
+        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ fromInt operationId
         , body =
             jsonBody
                 (Encode.object
@@ -304,18 +294,18 @@ requestPatchNAStoDAM op =
                     , ( "Value", Encode.string antiMasterMode )
                     ]
                 )
-        , expect = expectWhatever GotSwithcNAStoDAM
+        , expect = expectWhatever (GotSwitchMasterMode antiMasterMode)
         , timeout = Nothing
         , tracker = Nothing
         }
 
 
-requestDeleteTask : Int -> Cmd Msg
-requestDeleteTask taskId =
+requestDeleteTask : Int -> Environment -> Cmd Msg
+requestDeleteTask taskId currentEnv =
     Http.request
         { method = "DELETE"
         , headers = apiHeader
-        , url = config.server ++ "/tasks/" ++ fromInt taskId
+        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ fromInt taskId
         , body = emptyBody
         , expect = expectJson GotDeleteTask deleteTaskDecoder
         , timeout = Nothing
@@ -323,34 +313,25 @@ requestDeleteTask taskId =
         }
 
 
-requestAbortTask : Int -> Cmd Msg
-requestAbortTask taskId =
+requestAbortTask : Int -> Environment -> Cmd Msg
+requestAbortTask taskId currentEnv =
     Http.request
         { method = "DELETE"
         , headers = apiHeader
-        , url = config.server ++ "/tasks/" ++ fromInt taskId
-        , body =
-            emptyBody
-
-        -- jsonBody
-        --     (Encode.object
-        --         [ ( "Op", Encode.string "UPDATE" )
-        --         , ( "Path", Encode.string "status" )
-        --         , ( "Value", Encode.string "Aborted" )
-        --         ]
-        --     )
+        , url = (config currentEnv).serverMediaAPI ++ "/tasks/" ++ fromInt taskId
+        , body = emptyBody
         , expect = expectWhatever GotAbortTask
         , timeout = Nothing
         , tracker = Nothing
         }
 
 
-requestGetWorkflows : Operation -> Cmd Msg
-requestGetWorkflows op =
+requestGetWorkflows : Operation -> Environment -> Cmd Msg
+requestGetWorkflows op currentEnv =
     Http.request
         { method = "GET"
         , headers = apiHeader
-        , url = config.server ++ "/operations/" ++ op.operationCode ++ "/workflows"
+        , url = (config currentEnv).serverMediaAPI ++ "/operations/" ++ op.operationCode ++ "/workflows"
         , body = emptyBody
         , expect = expectJson GotWorkflows workflowsDecoder
         , timeout = Nothing
@@ -358,18 +339,30 @@ requestGetWorkflows op =
         }
 
 
-requestAbortWorkflow : String -> Cmd Msg
-requestAbortWorkflow workflowId =
+requestAbortWorkflow : String -> Environment -> Cmd Msg
+requestAbortWorkflow workflowId currentEnv =
     Http.request
         { method = "POST"
         , headers = apiHeader
-        , url = config.server ++ "/workflows/" ++ workflowId ++ "/abort"
+        , url = (config currentEnv).serverMediaAPI ++ "/workflows/" ++ workflowId ++ "/abort"
         , body = emptyBody
         , expect = expectWhatever GotAbortWorkflow
         , timeout = Nothing
         , tracker = Nothing
         }
 
+
+requestPostInitMagistor : Operation -> Environment -> Cmd Msg
+requestPostInitMagistor op currentEnv =
+    Http.request
+        { method = "POST"
+        , headers = apiHeader
+        , url = (config currentEnv).serverMSServerAPI ++ "/api/context/" ++ op.operationCode ++ "/source-legacy-references" 
+        , body = emptyBody
+        , expect = expectWhatever GotInitMagistor
+        , timeout = Nothing
+        , tracker = Nothing
+        }
 
 
 ---------- HELPERS
@@ -408,16 +401,16 @@ getLastWorkflow w =
             emptyWorkflow
 
 
-fromBoolToString : Bool -> String
-fromBoolToString b =
+fromBoolToColor : Bool -> String
+fromBoolToColor b =
     if b then
-        "[-]"
+        "yellow"
 
     else
-        "[+]"
+        "lightgray"
 
 
-fromEnvToString : Env -> String
+fromEnvToString : Environment -> String
 fromEnvToString environnement =
     case environnement of
         PROD ->
@@ -498,55 +491,73 @@ update msg model =
 
         operationCode =
             modelOp.operationCode
+
+        currentEnv =
+            model.env
     in
     case msg of
         NoOp ->
             ( model, Cmd.none )
 
+        SetEnv selectedEnv ->
+            ( { model
+                | env = selectedEnv
+                , op = emptyOperation
+                , tasks = [ emptyTask ]
+                , responseApi = emptyResponseApi
+                , workflows = [ emptyWorkflow ]
+                , displayedCategory = NOCATEGORY
+                , messageUser = ""
+              }
+            , Cmd.none
+            )
+
         SetOperationInput op ->
             ( { model | operationInput = op }, Cmd.none )
 
         CallGetTasks ->
-            if model.displayTasks then
-                ( { model | displayTasks = False, messageUser = "" }, Cmd.none )
+            if model.displayedCategory==TASKS then
+                ( { model | displayedCategory = NOCATEGORY, messageUser = "" }, Cmd.none )
 
             else
-                ( { model | displayTasks = True, displayWorkflows = False, messageUser = "" }, requestGetTasks opInput )
+                ( { model | displayedCategory = TASKS, messageUser = "" }, requestGetTasks opInput currentEnv )
 
         CallGetOperation ->
             ( { model
                 | tasks = [ emptyTask ]
                 , workflows = [ emptyWorkflow ]
-                , displayWorkflows = False
-                , displayTasks = False
+                , displayedCategory = NOCATEGORY
                 , messageUser = ""
               }
-            , requestGetOperation opInput
+            , requestGetOperation opInput currentEnv
             )
 
-        CallSwitchDAMtoNAS ->
+        CallIndexation op masterMode ->
+            let
+                operation =
+                    { op | masterMode = masterMode }
+            in
             ( { model
-                | displayWorkflows = False
-                , displayTasks = True
+                | displayedCategory = TASKS
+                , op = operation
               }
-            , requestPostDAMtoNAS modelOp
+            , requestPostIndexation op masterMode currentEnv
             )
 
-        CallSwitchNAStoDAM ->
+        CallSwitchMasterMode ->
             ( { model
-                | displayWorkflows = False
-                , displayTasks = True
+                | displayedCategory = TASKS
               }
-            , requestPatchNAStoDAM modelOp
+            , requestPatchMasterMode modelOp currentEnv
             )
 
         CallDeleteTask taskId ->
-            ( model, requestDeleteTask taskId )
+            ( model, requestDeleteTask taskId currentEnv )
 
         CallGetWorkflows ->
-            if model.displayWorkflows then
+            if model.displayedCategory==WORKFLOWS then
                 ( { model
-                    | displayWorkflows = False
+                    | displayedCategory = NOCATEGORY
                     , messageUser = ""
                   }
                 , Cmd.none
@@ -554,21 +565,32 @@ update msg model =
 
             else
                 ( { model
-                    | displayWorkflows = True
-                    , displayTasks = False
+                    | displayedCategory=WORKFLOWS
                     , messageUser = ""
                   }
-                , requestGetWorkflows modelOp
+                , requestGetWorkflows modelOp currentEnv
                 )
 
         CallAbortWorkflow workflowId ->
-            ( model, requestAbortWorkflow workflowId )
+            ( model, requestAbortWorkflow workflowId currentEnv )
 
         CallAbortTask taskId ->
-            ( model, requestAbortTask taskId )
+            ( model, requestAbortTask taskId currentEnv )
 
-        CallIndexation op ->
-            ( model, requestPostIndexation op.operationCode op.masterMode )
+        CallInitMagistor ->
+            ( { model
+                | displayedCategory = MAGISTOR
+              }
+            , requestPostInitMagistor modelOp currentEnv
+            )
+
+        CallGetMagistor ->
+            if model.displayedCategory==MAGISTOR then
+                ( { model | displayedCategory = NOCATEGORY, messageUser = "" }, Cmd.none )
+
+            else
+                ( { model | displayedCategory = MAGISTOR, messageUser = "" }, Cmd.none )
+
 
         GotTasks r ->
             let
@@ -599,7 +621,7 @@ update msg model =
             ( { model
                 | op = gotOperation
               }
-            , requestGetTasks opInput
+            , requestGetTasks opInput currentEnv
             )
 
         GotDeleteTask r ->
@@ -613,7 +635,7 @@ update msg model =
                             emptyResponseApi
             in
             ( { model | responseApi = gotResponseApi }
-            , requestGetTasks opInput
+            , requestGetTasks opInput currentEnv
             )
 
         GotWorkflows r ->
@@ -629,16 +651,46 @@ update msg model =
             ( { model | workflows = gotWorkflows }, Cmd.none )
 
         GotAbortWorkflow _ ->
-            ( { model | messageUser = "Le bouton publication de la vente " ++ operationCode ++ " est débloqué." }, requestGetWorkflows modelOp )
+            ( { model | messageUser = "Le bouton publication de la vente " ++ operationCode ++ " est débloqué." }, requestGetWorkflows modelOp currentEnv )
 
-        GotSwithcNAStoDAM _ ->
-            ( { model | displayTasks = True, messageUser = "La vente " ++ operationCode ++ " est passée en mode DAM." }, requestGetOperation opInput )
-
-        GotSwitchDAMtoNAS _ ->
-            ( { model | messageUser = "La vente " ++ operationCode ++ " est passée en mode NAS + indexation en cours." }, requestGetTasks opInput )
+        GotSwitchMasterMode masterMode _ ->
+            ( { model | displayedCategory=TASKS
+                    , messageUser = "La vente " ++ operationCode ++ " est passée en mode " ++ masterMode ++ "." }
+                    , requestGetOperation opInput currentEnv )
 
         GotAbortTask _ ->
-            ( { model | messageUser = "La task en PENDING est supprimée." }, requestGetTasks opInput )
+            ( { model | messageUser = "La task en PENDING est supprimée." }, requestGetTasks opInput currentEnv )
+
+        GotIndexation switchAndIndex _ ->
+            let
+                msgIndexation =
+                    if switchAndIndex then
+                        "L'indexation " ++ modelOp.masterMode ++ " de la vente " ++ operationCode ++ " est en cours."
+
+                    else
+                        "La vente " ++ operationCode ++ " est passée en mode " ++ modelOp.masterMode ++ " et l'indexation est en cours."
+            in
+            ( { model | messageUser = msgIndexation }, requestGetTasks opInput currentEnv )
+
+        GotInitMagistor r ->
+            let
+                msgInitMagistor = 
+                    case r of
+                        Ok _ -> 
+                            "La vente " ++ operationCode ++ " a été réinitialisée et resynchronisée avec Magistor."
+                        Err e ->
+                            let 
+                                errorMsg = case e of
+                                    Http.BadUrl url -> "Bad URL : " ++ url
+                                    Http.Timeout -> "Time out."
+                                    Http.NetworkError -> "Network error."
+                                    Http.BadStatus i -> fromInt i
+                                    Http.BadBody body -> "Bad Body - " ++ body
+
+                            in
+                            "La vente " ++ operationCode ++ " n'a pas pu être réinitialisée. Error : "  ++ errorMsg
+            in
+             ( { model | messageUser = msgInitMagistor }, Cmd.none )
 
         LinkClicked urlRequest ->
             case urlRequest of
@@ -652,11 +704,6 @@ update msg model =
             ( { model | url = url }
             , Cmd.none
             )
-
-        GotIndexation _ ->
-            ( { model | messageUser = "Indexation de la vente " ++ operationCode ++ " en cours." }, requestGetTasks opInput )
-
-
 
 ---------- DISPLAYS
 
@@ -674,8 +721,8 @@ displayFooter v =
         ]
 
 
-displayWorkflows : Workflows -> Bool -> String -> Html Msg
-displayWorkflows workflows display operationCode =
+displayWorkflows : Workflows -> Category -> String -> Environment -> Html Msg
+displayWorkflows workflows category operationCode environment =
     let
         workflowsSortedByStarted =
             reverse (sortBy .started workflows)
@@ -684,7 +731,7 @@ displayWorkflows workflows display operationCode =
             getLastWorkflow workflowsSortedByStarted
 
         displayMode =
-            if display then
+            if category==WORKFLOWS then
                 "block"
 
             else
@@ -710,7 +757,9 @@ displayWorkflows workflows display operationCode =
                                 [ if w.id == lastWorkflow.id && w.status /= "ABORTED" && w.status /= "ENDED" then
                                     button
                                         [ onClick (CallAbortWorkflow w.id)
-                                        , track ("Abort publication on " ++ operationCode)
+                                        , track ("Abort publication on " ++ operationCode) environment
+                                        , attribute "title" "Abort the current publication"
+                                        , style "width" "200px"
                                         ]
                                         [ text "Abort this Publication" ]
 
@@ -730,11 +779,11 @@ displayWorkflows workflows display operationCode =
         ]
 
 
-displayTasks : Tasks -> Bool -> String -> Html Msg
-displayTasks tasks display operationCode =
+displayTasks : Tasks -> Category -> String -> Environment -> Html Msg
+displayTasks tasks display operationCode environnement =
     let
         displayMode =
-            if display then
+            if display==TASKS then
                 "block"
 
             else
@@ -766,7 +815,7 @@ displayTasks tasks display operationCode =
                             [ td [ style "width" "30%" ] [ text "TASKS" ]
                             , td [ style "width" "70%" ]
                                 [ if t.status == "Pending" then
-                                    button [ onClick (CallAbortTask t.id), track ("Delete Pending task on " ++ operationCode) ] [ text "Delete this pending task" ]
+                                    button [ style "width" "200px", onClick (CallAbortTask t.id), track ("Delete Pending task on " ++ operationCode) environnement ] [ text "Delete this pending task" ]
 
                                   else
                                     text ""
@@ -807,14 +856,14 @@ displayOperation o =
         ]
 
 
-displayCallMasterMode : Operation -> Task -> Bool -> Html Msg
-displayCallMasterMode op lastTask display =
+displayButtonMasterMode : Operation -> Task -> Category -> Environment -> Html Msg
+displayButtonMasterMode op lastTask category environnement =
     let
         displayMode =
             if op.masterMode == "NONE" then
                 "none"
 
-            else if display == True then
+            else if category == TASKS then
                 "block"
 
             else
@@ -836,52 +885,96 @@ displayCallMasterMode op lastTask display =
             else
                 "enabled"
 
-        buttonLabel =
+        buttonLabelMasterModeIndexation =
             "Switch "
                 ++ masterModeStr
                 ++ " to "
                 ++ antiMasterModeStr
-                ++ (if antiMasterModeStr == "NAS" then
-                        " + Indexation NAS"
+                ++ " + Indexation "
+                ++ antiMasterModeStr
 
-                    else
-                        ""
-                   )
+        buttonLabelMasterMode =
+            "Switch "
+                ++ masterModeStr
+                ++ " to "
+                ++ antiMasterModeStr
+
+        msgTrack_SwitchMasterMode =
+            "Switch MasterMode to " ++ antiMasterModeStr ++ " on " ++ op.operationCode
+
+        msgTitle_MasterModeCannotBeChanged =
+            "The Master Mode can not be changed because the STATUS of the last task is Pending..."
+
+        msgTitle_SwitchMasterMode =
+            "Switch the current Master Mode from " ++ masterModeStr ++ " to " ++ antiMasterModeStr
+
+        msgTrack_Indexation =
+            "Launch the indexation " ++ masterModeStr ++ " on " ++ op.operationCode
+
+        msgTitle_IndexationNotAvailable =
+            "The indexation is not available because a task has already been pending..."
+
+        msgTitle_Indexation =
+            "Launch an indexation " ++ masterModeStr
+
+        msgButton_Indexation =
+            "Indexation " ++ masterModeStr
+
+        msgTitle_SwitchMasterMode_Indexation =
+            "Switch the current Master Mode from " ++ masterModeStr ++ " to " ++ antiMasterModeStr ++ " + Indexation " ++ antiMasterModeStr
     in
     div
         [ style "display" displayMode ]
         [ hr [] []
         , button
-            [ attribute enableMasterModeSwitch ""
-            , track ("Switch MasterMode to " ++ antiMasterModeStr ++ " on " ++ op.operationCode)
+            [ style "width" "200px",
+                attribute enableMasterModeSwitch ""
+            , track msgTrack_SwitchMasterMode environnement
             , if enableMasterModeSwitch == "disabled" then
-                attribute "title" "The Master Mode can not be changed because the STATUS of the last task is Pending..."
+                attribute "title" msgTitle_MasterModeCannotBeChanged
 
               else
-                attribute "title" ("Switch the current Master Mode " ++ masterModeStr ++ " to " ++ antiMasterModeStr)
-            , if antiMasterModeStr == "DAM" then
-                onClick CallSwitchNAStoDAM
-
-              else
-                onClick CallSwitchDAMtoNAS
+                attribute "title" msgTitle_SwitchMasterMode
+            , onClick CallSwitchMasterMode
             ]
-            [ text buttonLabel ]
+            [ text buttonLabelMasterMode ]
         , text " "
         , button
-            [ onClick (CallIndexation op)
+            [  style "width" "200px",
+            onClick (CallIndexation op masterModeStr)
             , attribute enableMasterModeSwitch ""
+            , track msgTrack_Indexation environnement
             , if enableMasterModeSwitch == "disabled" then
-                attribute "title" "The indexation is not available because a task has already been pending..."
+                attribute "title" msgTitle_IndexationNotAvailable
 
               else
-                attribute "title" ("Launch an indexation in mode " ++ masterModeStr)
+                attribute "title" msgTitle_Indexation
             ]
-            [ text ("Indexation " ++ masterModeStr) ]
+            [ text msgButton_Indexation ]
+        , if masterModeStr == "NAS" then
+            text ""
+
+          else
+            text " > "
+        , if masterModeStr == "NAS" then
+            text ""
+
+          else
+            button
+                [ style "width" "400px", attribute enableMasterModeSwitch ""
+                , track msgTrack_SwitchMasterMode environnement
+                , if enableMasterModeSwitch == "disabled" then
+                    attribute "title" msgTitle_MasterModeCannotBeChanged
+
+                  else
+                    attribute "title" msgTitle_SwitchMasterMode_Indexation
+                , onClick (CallIndexation op antiMasterModeStr)
+                ]
+                [ text buttonLabelMasterModeIndexation ]
         ]
 
-
-displayCallGetWorkflows : Operation -> Bool -> Html Msg
-displayCallGetWorkflows op display =
+displayButtonCategory : Operation -> Category -> Category -> Html Msg
+displayButtonCategory op categoryButton categoryOn =
     let
         displayMode =
             if op.operationId == -1 then
@@ -889,28 +982,49 @@ displayCallGetWorkflows op display =
 
             else
                 "block"
+                
+        isDisp = categoryButton==categoryOn
     in
     div
         [ style "display" displayMode
         ]
-        [ button [ onClick CallGetWorkflows ] [ text ("Publication Workflows " ++ fromBoolToString display) ]
+        [  
+            case categoryButton of 
+                TASKS ->
+                    button [ onClick CallGetTasks, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Tasks" ] 
+          
+                WORKFLOWS ->        
+                    button [ onClick CallGetWorkflows, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Publication Workflows" ]
+                
+                MAGISTOR ->
+                    button [ onClick CallGetMagistor, style "width" "200px", style "background-color" (fromBoolToColor isDisp) ] [ text "Magistor" ] 
+                
+                NOCATEGORY ->
+                    text ""
         ]
 
-
-displayCallTasks : Operation -> Bool -> Html Msg
-displayCallTasks op display =
+displayButtonMagistor : Operation -> Category -> Environment -> Html Msg
+displayButtonMagistor op category  environnement =
     let
         displayMode =
-            if op.operationId == -1 then
-                "none"
+            if category == MAGISTOR then
+                "block"
 
             else
-                "block"
+                "none"
+        
+        msgTrack_InitMagistor = "Magistor initialization on " ++ op.operationCode
     in
-    div
-        [ style "display" displayMode ]
-        [ button [ onClick CallGetTasks ] [ text ("Tasks " ++ fromBoolToString display) ] ]
-
+    div [ style "display" displayMode ]
+        [ hr [] [], 
+            button [
+                track msgTrack_InitMagistor environnement
+                , onClick CallInitMagistor
+                , attribute "title" ("Initialize the sale "++ op.operationCode ++ " with Magistor data")
+                , style "width" "200px"
+            ][text ("Initialize "++ op.operationCode )]
+         
+    ]
 
 displayMessageUser : String -> Html Msg
 displayMessageUser message =
@@ -926,8 +1040,8 @@ displayMessageUser message =
         ]
 
 
-displayMenu : Operation -> Bool -> Bool -> Html Msg
-displayMenu op isDispTask isDispWorkflow =
+displayButtonMenu : Operation -> Category -> Html Msg
+displayButtonMenu op category =
     let
         displayMode =
             if op.operationId == -1 then
@@ -935,29 +1049,53 @@ displayMenu op isDispTask isDispWorkflow =
 
             else
                 "block"
+        
     in
     div [ style "display" displayMode ]
         [ hr [] []
         , div [ style "display" "flex" ]
-            [ div [ style "flex" "1" ] [ displayCallTasks op isDispTask ]
-            , div [ style "flex" "1" ] [ displayCallGetWorkflows op isDispWorkflow ]
+            [ div [ style "flex" "1", attribute "title" "Check the Tasks | Switch Master Mode" ]
+                    [ displayButtonCategory op TASKS category]
+            , div [ style "flex" "1", attribute "title" "Check the Publication Workflows | Abort Publication" ] 
+                    [ displayButtonCategory op WORKFLOWS category] 
+            , div [ style "flex" "1", attribute "title" "Reinitialize the sale with Magistor data" ]
+                    [ displayButtonCategory op MAGISTOR category] 
             ]
         ]
 
 
-displayHeader : Html Msg
-displayHeader =
+displayHeader : Environment -> Html Msg
+displayHeader selectedEnv =
     div [ style "display" "flex", style "flex-direction" "row" ]
-        [ div [ style "flex" "1", style "white-space" "nowrap" ] [ displayEnv ]
+        [ div [ style "flex" "1", style "white-space" "nowrap" ] [ displayEnv selectedEnv ]
         , div [ style "flex" "50" ] []
         , div [ style "flex" "1", style "white-space" "nowrap" ] [ displayStats ]
         ]
 
 
-displayEnv : Html Msg
-displayEnv =
+displayEnv : Environment -> Html Msg
+displayEnv selectedEnv =
+    let
+        nextEnv =
+            case selectedEnv of
+                PROD ->
+                    CI
+
+                CI ->
+                    PREPROD
+
+                PREPROD ->
+                    PROD
+    in
     div []
-        [ text ("Environment : " ++ fromEnvToString env) ]
+        [ text "Environment : "
+        , span
+            [ onClick (SetEnv nextEnv)
+            , style "cursor" "pointer"
+            , attribute "title" ("Switch to " ++ fromEnvToString nextEnv)
+            ]
+            [ text (fromEnvToString selectedEnv) ]
+        ]
 
 
 displayStats : Html Msg
@@ -978,7 +1116,7 @@ displayInputOperation opInput =
             , placeholder "OperationCode"
             ]
             []
-        , button [ onClick CallGetOperation ]
+        , button [ onClick CallGetOperation , style "width" "100px"]
             [ text "OK" ]
         ]
 
@@ -987,9 +1125,9 @@ displayInputOperation opInput =
 ---------- TRACKING
 
 
-track : String -> Attribute msg
-track label =
-    attribute "data-vpa-id" label
+track : String -> Environment -> Attribute msg
+track label environment =
+    attribute "data-vpa-id" (label ++ " - " ++ fromEnvToString environment)
 
 
 
@@ -1011,14 +1149,15 @@ view model =
     { title = "Pamela " ++ version
     , body =
         [ div [ style "margin" "20px" ]
-            [ displayHeader
+            [ displayHeader model.env
             , displayInputOperation model.operationInput
             , displayOperation modelOp
-            , displayMenu modelOp model.displayTasks model.displayWorkflows
-            , displayCallMasterMode modelOp (getLastTask modelTasks) model.displayTasks
+            , displayButtonMenu modelOp model.displayedCategory
+            , displayButtonMasterMode modelOp (getLastTask modelTasks) model.displayedCategory model.env
+            , displayButtonMagistor modelOp model.displayedCategory model.env
             , displayMessageUser model.messageUser
-            , displayWorkflows modelWorkflows model.displayWorkflows modelOp.operationCode
-            , displayTasks modelTasks model.displayTasks modelOp.operationCode
+            , displayWorkflows modelWorkflows model.displayedCategory modelOp.operationCode model.env
+            , displayTasks modelTasks model.displayedCategory modelOp.operationCode model.env
             , displayFooter version
             ]
         ]

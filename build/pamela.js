@@ -5330,10 +5330,8 @@ var $elm$core$Task$perform = F2(
 	});
 var $elm$browser$Browser$application = _Browser_application;
 var $author$project$Main$PROD = {$: 'PROD'};
-var $author$project$Main$env = $author$project$Main$PROD;
-var $author$project$Main$config = function () {
-	var _v0 = $author$project$Main$env;
-	switch (_v0.$) {
+var $author$project$Main$config = function (selectedEnv) {
+	switch (selectedEnv.$) {
 		case 'PROD':
 			return {defaultOperation: '', server: 'http://mediaapi.vpback.vpgrp.io/api/v1'};
 		case 'PREPROD':
@@ -5341,7 +5339,7 @@ var $author$project$Main$config = function () {
 		default:
 			return {defaultOperation: '', server: 'http://mediaapi-ci.vpback.vpgrp.io/api/v1'};
 	}
-}();
+};
 var $elm$core$Basics$negate = function (n) {
 	return -n;
 };
@@ -5357,10 +5355,11 @@ var $author$project$Main$init = F3(
 			{
 				displayTasks: false,
 				displayWorkflows: false,
+				env: $author$project$Main$PROD,
 				key: key,
 				messageUser: '',
 				op: $author$project$Main$emptyOperation,
-				operationInput: $author$project$Main$config.defaultOperation,
+				operationInput: $author$project$Main$config($author$project$Main$PROD).defaultOperation,
 				responseApi: $author$project$Main$emptyResponseApi,
 				tasks: _List_fromArray(
 					[$author$project$Main$emptyTask]),
@@ -6164,33 +6163,35 @@ var $elm$http$Http$request = function (r) {
 		$elm$http$Http$Request(
 			{allowCookiesFromOtherDomains: false, body: r.body, expect: r.expect, headers: r.headers, method: r.method, timeout: r.timeout, tracker: r.tracker, url: r.url}));
 };
-var $author$project$Main$requestAbortTask = function (taskId) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: $elm$http$Http$expectWhatever($author$project$Main$GotAbortTask),
-			headers: $author$project$Main$apiHeader,
-			method: 'DELETE',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/tasks/' + $elm$core$String$fromInt(taskId))
-		});
-};
+var $author$project$Main$requestAbortTask = F2(
+	function (taskId, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: $elm$http$Http$expectWhatever($author$project$Main$GotAbortTask),
+				headers: $author$project$Main$apiHeader,
+				method: 'DELETE',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/tasks/' + $elm$core$String$fromInt(taskId))
+			});
+	});
 var $author$project$Main$GotAbortWorkflow = function (a) {
 	return {$: 'GotAbortWorkflow', a: a};
 };
-var $author$project$Main$requestAbortWorkflow = function (workflowId) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: $elm$http$Http$expectWhatever($author$project$Main$GotAbortWorkflow),
-			headers: $author$project$Main$apiHeader,
-			method: 'POST',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/workflows/' + (workflowId + '/abort'))
-		});
-};
+var $author$project$Main$requestAbortWorkflow = F2(
+	function (workflowId, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: $elm$http$Http$expectWhatever($author$project$Main$GotAbortWorkflow),
+				headers: $author$project$Main$apiHeader,
+				method: 'POST',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/workflows/' + (workflowId + '/abort'))
+			});
+	});
 var $author$project$Main$GotDeleteTask = function (a) {
 	return {$: 'GotDeleteTask', a: a};
 };
@@ -6231,18 +6232,19 @@ var $elm$http$Http$expectJson = F2(
 						A2($elm$json$Json$Decode$decodeString, decoder, string));
 				}));
 	});
-var $author$project$Main$requestDeleteTask = function (taskId) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: A2($elm$http$Http$expectJson, $author$project$Main$GotDeleteTask, $author$project$Main$deleteTaskDecoder),
-			headers: $author$project$Main$apiHeader,
-			method: 'DELETE',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/tasks/' + $elm$core$String$fromInt(taskId))
-		});
-};
+var $author$project$Main$requestDeleteTask = F2(
+	function (taskId, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: A2($elm$http$Http$expectJson, $author$project$Main$GotDeleteTask, $author$project$Main$deleteTaskDecoder),
+				headers: $author$project$Main$apiHeader,
+				method: 'DELETE',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/tasks/' + $elm$core$String$fromInt(taskId))
+			});
+	});
 var $author$project$Main$GotOperation = function (a) {
 	return {$: 'GotOperation', a: a};
 };
@@ -6256,18 +6258,19 @@ var $author$project$Main$operationDecoder = A4(
 	A2($elm$json$Json$Decode$field, 'id', $elm$json$Json$Decode$int),
 	A2($elm$json$Json$Decode$field, 'label', $elm$json$Json$Decode$string),
 	A2($elm$json$Json$Decode$field, 'master_mode', $elm$json$Json$Decode$string));
-var $author$project$Main$requestGetOperation = function (op) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: A2($elm$http$Http$expectJson, $author$project$Main$GotOperation, $author$project$Main$operationDecoder),
-			headers: $author$project$Main$apiHeader,
-			method: 'GET',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/operations/' + op)
-		});
-};
+var $author$project$Main$requestGetOperation = F2(
+	function (op, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: A2($elm$http$Http$expectJson, $author$project$Main$GotOperation, $author$project$Main$operationDecoder),
+				headers: $author$project$Main$apiHeader,
+				method: 'GET',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/operations/' + op)
+			});
+	});
 var $author$project$Main$GotTasks = function (a) {
 	return {$: 'GotTasks', a: a};
 };
@@ -6289,18 +6292,19 @@ var $author$project$Main$taskDecoder = A9(
 	A2($elm$json$Json$Decode$field, 'modification_date', $elm$json$Json$Decode$string),
 	A2($elm$json$Json$Decode$field, 'master_mode', $elm$json$Json$Decode$string));
 var $author$project$Main$tasksDecoder = $elm$json$Json$Decode$list($author$project$Main$taskDecoder);
-var $author$project$Main$requestGetTasks = function (op) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: A2($elm$http$Http$expectJson, $author$project$Main$GotTasks, $author$project$Main$tasksDecoder),
-			headers: $author$project$Main$apiHeader,
-			method: 'GET',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/tasks/' + op)
-		});
-};
+var $author$project$Main$requestGetTasks = F2(
+	function (op, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: A2($elm$http$Http$expectJson, $author$project$Main$GotTasks, $author$project$Main$tasksDecoder),
+				headers: $author$project$Main$apiHeader,
+				method: 'GET',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/tasks/' + op)
+			});
+	});
 var $author$project$Main$GotWorkflows = function (a) {
 	return {$: 'GotWorkflows', a: a};
 };
@@ -6326,18 +6330,19 @@ var $author$project$Main$workflowsDecoder = A2(
 	_List_fromArray(
 		['Items']),
 	$elm$json$Json$Decode$list($author$project$Main$workflowDecoder));
-var $author$project$Main$requestGetWorkflows = function (op) {
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: A2($elm$http$Http$expectJson, $author$project$Main$GotWorkflows, $author$project$Main$workflowsDecoder),
-			headers: $author$project$Main$apiHeader,
-			method: 'GET',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/operations/' + (op.operationCode + '/workflows'))
-		});
-};
+var $author$project$Main$requestGetWorkflows = F2(
+	function (op, currentEnv) {
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: A2($elm$http$Http$expectJson, $author$project$Main$GotWorkflows, $author$project$Main$workflowsDecoder),
+				headers: $author$project$Main$apiHeader,
+				method: 'GET',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/operations/' + (op.operationCode + '/workflows'))
+			});
+	});
 var $author$project$Main$GotSwithcNAStoDAM = function (a) {
 	return {$: 'GotSwithcNAStoDAM', a: a};
 };
@@ -6371,55 +6376,57 @@ var $author$project$Main$toAntiMasterMode = function (masterMode) {
 			return 'NONE';
 	}
 };
-var $author$project$Main$requestPatchNAStoDAM = function (op) {
-	var operationId = op.operationId;
-	var antiMasterMode = $author$project$Main$toAntiMasterMode(op.masterMode);
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$jsonBody(
-				$elm$json$Json$Encode$object(
-					_List_fromArray(
-						[
-							_Utils_Tuple2(
-							'Op',
-							$elm$json$Json$Encode$string('UPDATE')),
-							_Utils_Tuple2(
-							'Path',
-							$elm$json$Json$Encode$string('master_mode')),
-							_Utils_Tuple2(
-							'Value',
-							$elm$json$Json$Encode$string(antiMasterMode))
-						]))),
-			expect: $elm$http$Http$expectWhatever($author$project$Main$GotSwithcNAStoDAM),
-			headers: $author$project$Main$apiHeader,
-			method: 'PATCH',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/operations/' + $elm$core$String$fromInt(operationId))
-		});
-};
+var $author$project$Main$requestPatchNAStoDAM = F2(
+	function (op, currentEnv) {
+		var operationId = op.operationId;
+		var antiMasterMode = $author$project$Main$toAntiMasterMode(op.masterMode);
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$jsonBody(
+					$elm$json$Json$Encode$object(
+						_List_fromArray(
+							[
+								_Utils_Tuple2(
+								'Op',
+								$elm$json$Json$Encode$string('UPDATE')),
+								_Utils_Tuple2(
+								'Path',
+								$elm$json$Json$Encode$string('master_mode')),
+								_Utils_Tuple2(
+								'Value',
+								$elm$json$Json$Encode$string(antiMasterMode))
+							]))),
+				expect: $elm$http$Http$expectWhatever($author$project$Main$GotSwithcNAStoDAM),
+				headers: $author$project$Main$apiHeader,
+				method: 'PATCH',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/operations/' + $elm$core$String$fromInt(operationId))
+			});
+	});
 var $author$project$Main$GotSwitchDAMtoNAS = function (a) {
 	return {$: 'GotSwitchDAMtoNAS', a: a};
 };
-var $author$project$Main$requestPostDAMtoNAS = function (op) {
-	var operation = op.operationCode;
-	var antiMasterMode = $author$project$Main$toAntiMasterMode(op.masterMode);
-	return $elm$http$Http$request(
-		{
-			body: $elm$http$Http$emptyBody,
-			expect: $elm$http$Http$expectWhatever($author$project$Main$GotSwitchDAMtoNAS),
-			headers: $author$project$Main$apiHeader,
-			method: 'POST',
-			timeout: $elm$core$Maybe$Nothing,
-			tracker: $elm$core$Maybe$Nothing,
-			url: $author$project$Main$config.server + ('/operations/' + (operation + ('/index/VALID?masterMode=' + antiMasterMode)))
-		});
-};
+var $author$project$Main$requestPostDAMtoNAS = F2(
+	function (op, currentEnv) {
+		var operation = op.operationCode;
+		var antiMasterMode = $author$project$Main$toAntiMasterMode(op.masterMode);
+		return $elm$http$Http$request(
+			{
+				body: $elm$http$Http$emptyBody,
+				expect: $elm$http$Http$expectWhatever($author$project$Main$GotSwitchDAMtoNAS),
+				headers: $author$project$Main$apiHeader,
+				method: 'POST',
+				timeout: $elm$core$Maybe$Nothing,
+				tracker: $elm$core$Maybe$Nothing,
+				url: $author$project$Main$config(currentEnv).server + ('/operations/' + (operation + ('/index/VALID?masterMode=' + antiMasterMode)))
+			});
+	});
 var $author$project$Main$GotIndexation = function (a) {
 	return {$: 'GotIndexation', a: a};
 };
-var $author$project$Main$requestPostIndexation = F2(
-	function (operationCode, masterMode) {
+var $author$project$Main$requestPostIndexation = F3(
+	function (operationCode, masterMode, currentEnv) {
 		return $elm$http$Http$request(
 			{
 				body: $elm$http$Http$emptyBody,
@@ -6428,7 +6435,7 @@ var $author$project$Main$requestPostIndexation = F2(
 				method: 'POST',
 				timeout: $elm$core$Maybe$Nothing,
 				tracker: $elm$core$Maybe$Nothing,
-				url: $author$project$Main$config.server + ('/operations/' + (operationCode + ('/index/VALID?masterMode=' + masterMode)))
+				url: $author$project$Main$config(currentEnv).server + ('/operations/' + (operationCode + ('/index/VALID?masterMode=' + masterMode)))
 			});
 	});
 var $elm$url$Url$addPort = F2(
@@ -6480,9 +6487,28 @@ var $author$project$Main$update = F2(
 		var opInput = model.operationInput;
 		var modelOp = model.op;
 		var operationCode = modelOp.operationCode;
+		var currentEnv = model.env;
 		switch (msg.$) {
 			case 'NoOp':
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'SetEnv':
+				var selectedEnv = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							displayTasks: false,
+							displayWorkflows: false,
+							env: selectedEnv,
+							messageUser: '',
+							op: $author$project$Main$emptyOperation,
+							responseApi: $author$project$Main$emptyResponseApi,
+							tasks: _List_fromArray(
+								[$author$project$Main$emptyTask]),
+							workflows: _List_fromArray(
+								[$author$project$Main$emptyWorkflow])
+						}),
+					$elm$core$Platform$Cmd$none);
 			case 'SetOperationInput':
 				var op = msg.a;
 				return _Utils_Tuple2(
@@ -6499,7 +6525,7 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{displayTasks: true, displayWorkflows: false, messageUser: ''}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 			case 'CallGetOperation':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -6513,24 +6539,24 @@ var $author$project$Main$update = F2(
 							workflows: _List_fromArray(
 								[$author$project$Main$emptyWorkflow])
 						}),
-					$author$project$Main$requestGetOperation(opInput));
+					A2($author$project$Main$requestGetOperation, opInput, currentEnv));
 			case 'CallSwitchDAMtoNAS':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{displayTasks: true, displayWorkflows: false}),
-					$author$project$Main$requestPostDAMtoNAS(modelOp));
+					A2($author$project$Main$requestPostDAMtoNAS, modelOp, currentEnv));
 			case 'CallSwitchNAStoDAM':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{displayTasks: true, displayWorkflows: false}),
-					$author$project$Main$requestPatchNAStoDAM(modelOp));
+					A2($author$project$Main$requestPatchNAStoDAM, modelOp, currentEnv));
 			case 'CallDeleteTask':
 				var taskId = msg.a;
 				return _Utils_Tuple2(
 					model,
-					$author$project$Main$requestDeleteTask(taskId));
+					A2($author$project$Main$requestDeleteTask, taskId, currentEnv));
 			case 'CallGetWorkflows':
 				return model.displayWorkflows ? _Utils_Tuple2(
 					_Utils_update(
@@ -6540,22 +6566,22 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{displayTasks: false, displayWorkflows: true, messageUser: ''}),
-					$author$project$Main$requestGetWorkflows(modelOp));
+					A2($author$project$Main$requestGetWorkflows, modelOp, currentEnv));
 			case 'CallAbortWorkflow':
 				var workflowId = msg.a;
 				return _Utils_Tuple2(
 					model,
-					$author$project$Main$requestAbortWorkflow(workflowId));
+					A2($author$project$Main$requestAbortWorkflow, workflowId, currentEnv));
 			case 'CallAbortTask':
 				var taskId = msg.a;
 				return _Utils_Tuple2(
 					model,
-					$author$project$Main$requestAbortTask(taskId));
+					A2($author$project$Main$requestAbortTask, taskId, currentEnv));
 			case 'CallIndexation':
 				var op = msg.a;
 				return _Utils_Tuple2(
 					model,
-					A2($author$project$Main$requestPostIndexation, op.operationCode, op.masterMode));
+					A3($author$project$Main$requestPostIndexation, op.operationCode, op.masterMode, currentEnv));
 			case 'GotTasks':
 				var r = msg.a;
 				var getTasks = function () {
@@ -6585,7 +6611,7 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{op: gotOperation}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 			case 'GotDeleteTask':
 				var r = msg.a;
 				var gotResponseApi = function () {
@@ -6600,7 +6626,7 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{responseApi: gotResponseApi}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 			case 'GotWorkflows':
 				var r = msg.a;
 				var gotWorkflows = function () {
@@ -6622,25 +6648,25 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{messageUser: 'Le bouton publication de la vente ' + (operationCode + ' est débloqué.')}),
-					$author$project$Main$requestGetWorkflows(modelOp));
+					A2($author$project$Main$requestGetWorkflows, modelOp, currentEnv));
 			case 'GotSwithcNAStoDAM':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{displayTasks: true, messageUser: 'La vente ' + (operationCode + ' est passée en mode DAM.')}),
-					$author$project$Main$requestGetOperation(opInput));
+					A2($author$project$Main$requestGetOperation, opInput, currentEnv));
 			case 'GotSwitchDAMtoNAS':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{messageUser: 'La vente ' + (operationCode + ' est passée en mode NAS + indexation en cours.')}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 			case 'GotAbortTask':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{messageUser: 'La task en PENDING est supprimée.'}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 			case 'LinkClicked':
 				var urlRequest = msg.a;
 				if (urlRequest.$ === 'Internal') {
@@ -6669,7 +6695,7 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{messageUser: 'Indexation de la vente ' + (operationCode + ' en cours.')}),
-					$author$project$Main$requestGetTasks(opInput));
+					A2($author$project$Main$requestGetTasks, opInput, currentEnv));
 		}
 	});
 var $author$project$Main$CallIndexation = function (a) {
@@ -6779,6 +6805,11 @@ var $author$project$Main$displayFooter = function (v) {
 					]))
 			]));
 };
+var $author$project$Main$CI = {$: 'CI'};
+var $author$project$Main$PREPROD = {$: 'PREPROD'};
+var $author$project$Main$SetEnv = function (a) {
+	return {$: 'SetEnv', a: a};
+};
 var $author$project$Main$fromEnvToString = function (environnement) {
 	switch (environnement.$) {
 		case 'PROD':
@@ -6789,14 +6820,43 @@ var $author$project$Main$fromEnvToString = function (environnement) {
 			return 'CI';
 	}
 };
-var $author$project$Main$displayEnv = A2(
-	$elm$html$Html$div,
-	_List_Nil,
-	_List_fromArray(
-		[
-			$elm$html$Html$text(
-			'Environment : ' + $author$project$Main$fromEnvToString($author$project$Main$env))
-		]));
+var $elm$html$Html$span = _VirtualDom_node('span');
+var $author$project$Main$displayEnv = function (selectedEnv) {
+	var nextEnv = function () {
+		switch (selectedEnv.$) {
+			case 'PROD':
+				return $author$project$Main$CI;
+			case 'CI':
+				return $author$project$Main$PREPROD;
+			default:
+				return $author$project$Main$PROD;
+		}
+	}();
+	return A2(
+		$elm$html$Html$div,
+		_List_Nil,
+		_List_fromArray(
+			[
+				$elm$html$Html$text('Environment : '),
+				A2(
+				$elm$html$Html$span,
+				_List_fromArray(
+					[
+						$elm$html$Html$Events$onClick(
+						$author$project$Main$SetEnv(nextEnv)),
+						A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
+						A2(
+						$elm$html$Html$Attributes$attribute,
+						'title',
+						'Switch to ' + $author$project$Main$fromEnvToString(nextEnv))
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text(
+						$author$project$Main$fromEnvToString(selectedEnv))
+					]))
+			]));
+};
 var $elm$html$Html$a = _VirtualDom_node('a');
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -6830,41 +6890,45 @@ var $author$project$Main$displayStats = A2(
 					$elm$html$Html$text('Statistics on Kibana')
 				]))
 		]));
-var $author$project$Main$displayHeader = A2(
-	$elm$html$Html$div,
-	_List_fromArray(
-		[
-			A2($elm$html$Html$Attributes$style, 'display', 'flex'),
-			A2($elm$html$Html$Attributes$style, 'flex-direction', 'row')
-		]),
-	_List_fromArray(
-		[
-			A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$style, 'flex', '1'),
-					A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
-				]),
-			_List_fromArray(
-				[$author$project$Main$displayEnv])),
-			A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$style, 'flex', '50')
-				]),
-			_List_Nil),
-			A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$style, 'flex', '1'),
-					A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
-				]),
-			_List_fromArray(
-				[$author$project$Main$displayStats]))
-		]));
+var $author$project$Main$displayHeader = function (selectedEnv) {
+	return A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'display', 'flex'),
+				A2($elm$html$Html$Attributes$style, 'flex-direction', 'row')
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'flex', '1'),
+						A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
+					]),
+				_List_fromArray(
+					[
+						$author$project$Main$displayEnv(selectedEnv)
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'flex', '50')
+					]),
+				_List_Nil),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'flex', '1'),
+						A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap')
+					]),
+				_List_fromArray(
+					[$author$project$Main$displayStats]))
+			]));
+};
 var $author$project$Main$CallGetOperation = {$: 'CallGetOperation'};
 var $author$project$Main$SetOperationInput = function (a) {
 	return {$: 'SetOperationInput', a: a};
@@ -7635,7 +7699,7 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$author$project$Main$displayHeader,
+						$author$project$Main$displayHeader(model.env),
 						$author$project$Main$displayInputOperation(model.operationInput),
 						$author$project$Main$displayOperation(modelOp),
 						A3($author$project$Main$displayMenu, modelOp, model.displayTasks, model.displayWorkflows),

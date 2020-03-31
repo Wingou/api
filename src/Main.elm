@@ -2,7 +2,7 @@ module Main exposing (Config, Environment(..), Model, Msg(..), Operation, Respon
 
 import Browser
 import Browser.Navigation as Nav
-import Html exposing (Attribute, Html, a, button, div, hr, input, span, table, td, text, tr, br, h3)
+import Html exposing (Attribute, Html, a, br, button, div, h3, hr, input, span, table, td, text, tr)
 import Html.Attributes exposing (attribute, href, placeholder, style, target, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (Header, emptyBody, expectJson, expectWhatever, header, jsonBody, request)
@@ -21,8 +21,11 @@ version : String
 version =
     "v0.1.5"
 
+
 baseLine : String
-baseLine = version  ++ " - Helpdesk Application by MediaProd - January 2020"
+baseLine =
+    version ++ " - Helpdesk Application by MediaProd - January 2020"
+
 
 kibanaUrl : String
 kibanaUrl =
@@ -55,21 +58,25 @@ apiHeader : List Header
 apiHeader =
     [ header "Authorization" "Basic c3ZjX21lZGlhdGFza3NAb3JlZGlzLXZwLmxvY2FsOnBXTlpPJzkuWFJ3Rg==" ]
 
+
 dialogBoxOn : DialogBox
-dialogBoxOn = {
-                isDisplayed= True
-                , bgColor = "lightgray"
-                ,opacity = "0.83"
-                , pointerEvent= "none" 
-                }
+dialogBoxOn =
+    { isDisplayed = True
+    , bgColor = "lightgray"
+    , opacity = "0.83"
+    , pointerEvent = "none"
+    }
+
+
 dialogBoxOff : DialogBox
-dialogBoxOff = 
-                {
-                isDisplayed= False
-                , bgColor = "white"
-                ,opacity = "1"
-                , pointerEvent= "auto" 
-                }
+dialogBoxOff =
+    { isDisplayed = False
+    , bgColor = "white"
+    , opacity = "1"
+    , pointerEvent = "auto"
+    }
+
+
 
 ---------- TYPES
 
@@ -155,12 +162,12 @@ type alias Workflow =
 type alias Workflows =
     List Workflow
 
+
 type alias DialogBox =
-    {
-        isDisplayed : Bool
-        , bgColor : String
-        ,opacity : String
-        , pointerEvent : String 
+    { isDisplayed : Bool
+    , bgColor : String
+    , opacity : String
+    , pointerEvent : String
     }
 
 
@@ -212,7 +219,7 @@ init _ url key =
       , url = url
       , messageUser = ""
       , env = PROD
-    , dialogBox = dialogBoxOff
+      , dialogBox = dialogBoxOff
       }
     , Cmd.none
     )
@@ -658,7 +665,7 @@ update msg model =
         CallInitMagistor ->
             ( { model
                 | displayedCategory = MAGISTOR
-                 , messageUser = "Initialisation en cours..."
+                , messageUser = "Initialization in progress..."
                 , dialogBox = dialogBoxOff
               }
             , requestPostInitMagistor modelOp currentEnv
@@ -683,10 +690,12 @@ update msg model =
 
         CallDialogBox status ->
             let
-                dialogBoxSwitch = if status=="ON" then
-                                        dialogBoxOn
-                                    else
-                                        dialogBoxOff
+                dialogBoxSwitch =
+                    if status == "ON" then
+                        dialogBoxOn
+
+                    else
+                        dialogBoxOff
             in
             ( { model
                 | dialogBox = dialogBoxSwitch
@@ -762,9 +771,9 @@ update msg model =
         ResultAbortWorkflow _ ->
             ( { model
                 | messageUser =
-                    "Le bouton publication de la vente "
+                    "The publication button of the sale "
                         ++ operationCode
-                        ++ " est débloqué."
+                        ++ " is reactivated in MediaPrep."
               }
             , requestGetWorkflows modelOp currentEnv
             )
@@ -773,18 +782,18 @@ update msg model =
             ( { model
                 | displayedCategory = TASKS
                 , messageUser =
-                    "La vente "
+                    "The sale "
                         ++ operationCode
-                        ++ " est passée en mode "
+                        ++ " is switched to "
                         ++ masterMode
-                        ++ "."
+                        ++ " mode."
               }
             , requestGetOperation opInput currentEnv
             )
 
         ResultAbortTask _ ->
             ( { model
-                | messageUser = "La task en PENDING est supprimée."
+                | messageUser = "The PENDING task is deleted."
               }
             , requestGetTasks opInput currentEnv
             )
@@ -793,18 +802,18 @@ update msg model =
             let
                 msgIndexation =
                     if switchAndIndex then
-                        "L'indexation "
-                            ++ modelOp.masterMode
-                            ++ " de la vente "
+                        "The indexation of the sale "
                             ++ operationCode
-                            ++ " est en cours."
+                            ++ " on "
+                            ++ modelOp.masterMode
+                            ++ " mode is in progress."
 
                     else
-                        "La vente "
+                        "The sale  "
                             ++ operationCode
-                            ++ " est passée en mode "
+                            ++ " is switched to "
                             ++ modelOp.masterMode
-                            ++ " et l'indexation est en cours."
+                            ++ " mode and the indexation is in progress."
             in
             ( { model
                 | messageUser = msgIndexation
@@ -817,9 +826,9 @@ update msg model =
                 msgInitMagistor =
                     case r of
                         Ok _ ->
-                            "La vente "
+                            "The sale "
                                 ++ operationCode
-                                ++ " a été réinitialisée et resynchronisée avec Magistor."
+                                ++ " is reinitialized and resynchronized with Magistor."
 
                         Err e ->
                             let
@@ -840,9 +849,9 @@ update msg model =
                                         Http.BadBody body ->
                                             "Bad Body - " ++ body
                             in
-                            "La vente "
+                            "The sale "
                                 ++ operationCode
-                                ++ " n'a pas pu être réinitialisée. Error : "
+                                ++ " can not be reinitialized. Error : "
                                 ++ errorMsg
             in
             ( { model
@@ -1147,7 +1156,7 @@ displayButtonMasterMode op lastTask category environnement =
                 ++ op.operationCode
 
         msgTitle_IndexationNotAvailable =
-            "The indexation is not available because a task has already been pending..."
+            "The indexation is not available because a task is still pending..."
 
         msgTitle_Indexation =
             "Launch an indexation "
@@ -1362,21 +1371,22 @@ displayButtonMenu op category =
 
 
 displayHeader : Environment -> String -> Html Msg
-displayHeader selectedEnv baseLineVersion  =
+displayHeader selectedEnv baseLineVersion =
     div [ style "display" "flex", style "flex-direction" "row" ]
         [ div [ style "flex" "1", style "white-space" "nowrap" ] [ displayEnv selectedEnv ]
-        , div [ style "flex" "50", style "text-align" "center" ] [ 
-            
-            div [style "font-family" "arial"
-            , style "font-size" "20px"
-            , style "font-weight" "bold"][ text "PAMELA" ]
-        , 
-        div [
-             style "font-family" "arial"
-            , style "font-size" "12px"
-
-        ][ text baseLineVersion]
-        ]
+        , div [ style "flex" "50", style "text-align" "center" ]
+            [ div
+                [ style "font-family" "arial"
+                , style "font-size" "20px"
+                , style "font-weight" "bold"
+                ]
+                [ text "PAMELA" ]
+            , div
+                [ style "font-family" "arial"
+                , style "font-size" "12px"
+                ]
+                [ text baseLineVersion ]
+            ]
         , div [ style "flex" "1", style "white-space" "nowrap" ] [ displayStats ]
         ]
 
@@ -1442,40 +1452,55 @@ displayInputOperation opInput =
             [ text "OK" ]
         ]
 
+
 displayDialog : Bool -> Html Msg
-displayDialog isDisplayed =   
-            let
-                displayMode = if isDisplayed then
-                                    "block"
-                                else
-                                    "none"
-            in
-               div [
-                            style "display" displayMode 
-                            ,style "position" "absolute"
-                            , style "border" "solid"
-                            , style "background-color" "white"
-                            ,style "left" "50%"
-                            ,style "top" "30%"
-                            ,style "width" "360px"
-                            ,style "height" "160px"
-                            ,style "margin-left" "-180px"
-                            , style "margin-top" "-80px"
-                            , style "text-align" "center"
-                            ][
-                                    h3[][text "WARNING !!!"],
-                                    
-                                   text "Every existing associations will be lost !"
-                                   , br [][]
-                                  
-                                   , text "Do you really want to complete the reinitalization ?"
-                                   , br[][],br[][],
-                                   div [ style "display" "flex", style "flex-direction" "row"][
-                                   div[style "flex" "1"][ ], button [style "flex" "1", onClick CallInitMagistor ][text "YES"] , div[style "flex" "1"][ ],  button [style "flex" "1", onClick (CallDialogBox "OFF")][text "NO"] 
-                                   , div[style "flex" "1"][ ]
-                                    ]    
-                                   
-                            ]   
+displayDialog isDisplayed =
+    let
+        displayMode =
+            if isDisplayed then
+                "block"
+
+            else
+                "none"
+    in
+    div
+        [ style "display" displayMode
+        , style "position" "absolute"
+        , style "border" "solid"
+        , style "background-color" "white"
+        , style "left" "50%"
+        , style "top" "30%"
+        , style "width" "360px"
+        , style "height" "160px"
+        , style "margin-left" "-180px"
+        , style "margin-top" "-80px"
+        , style "text-align" "center"
+        ]
+        [ h3 [] [ text "WARNING !!!" ]
+        , text "Every existing associations will be lost !"
+        , br [] []
+        , text "Do you really want to complete the reinitalization ?"
+        , br [] []
+        , br [] []
+        , div
+            [ style "display" "flex"
+            , style "flex-direction" "row"
+            ]
+            [ div [ style "flex" "1" ] []
+            , button
+                [ style "flex" "1"
+                , onClick CallInitMagistor
+                ]
+                [ text "YES" ]
+            , div [ style "flex" "1" ] []
+            , button
+                [ style "flex" "1"
+                , onClick (CallDialogBox "OFF")
+                ]
+                [ text "NO" ]
+            , div [ style "flex" "1" ] []
+            ]
+        ]
 
 
 
@@ -1512,30 +1537,26 @@ view model =
     in
     { title = "Pamela " ++ version
     , body =
-        [ 
-            div [ style "margin" "1%" ]
-            [
-            div [ 
-               style "position" "absolute"
-               , style "width" "98%"
-               , style "background-color" modelDialogBox.bgColor 
-              , style "opacity" modelDialogBox.opacity 
-              , style "pointer-events" modelDialogBox.pointerEvent 
-              ]
-            [ displayHeader model.env baseLine
-            , displayInputOperation model.operationInput
-            , displayOperation modelOp
-            , displayButtonMenu modelOp model.displayedCategory
-            , displayButtonMasterMode modelOp (getLastTask modelTasks) model.displayedCategory model.env
-            , displayButtonMagistor modelOp model.displayedCategory model.env
-            , displayMessageUser model.messageUser
-            , displayWorkflows modelWorkflows model.displayedCategory modelOp.operationCode model.env
-            , displayTasks modelTasks model.displayedCategory modelOp.operationCode model.env
-            , displayFooter version
-            ],
-
-                displayDialog modelDialogBox.isDisplayed
-                                     
+        [ div [ style "margin" "1%" ]
+            [ div
+                [ style "position" "absolute"
+                , style "width" "98%"
+                , style "background-color" modelDialogBox.bgColor
+                , style "opacity" modelDialogBox.opacity
+                , style "pointer-events" modelDialogBox.pointerEvent
+                ]
+                [ displayHeader model.env baseLine
+                , displayInputOperation model.operationInput
+                , displayOperation modelOp
+                , displayButtonMenu modelOp model.displayedCategory
+                , displayButtonMasterMode modelOp (getLastTask modelTasks) model.displayedCategory model.env
+                , displayButtonMagistor modelOp model.displayedCategory model.env
+                , displayMessageUser model.messageUser
+                , displayWorkflows modelWorkflows model.displayedCategory modelOp.operationCode model.env
+                , displayTasks modelTasks model.displayedCategory modelOp.operationCode model.env
+                , displayFooter version
+                ]
+            , displayDialog modelDialogBox.isDisplayed
             ]
         ]
     }
